@@ -1,18 +1,37 @@
-defmodule ExTurn do
-  @moduledoc """
-  Documentation for `ExTurn`.
-  """
+defmodule ExTURN do
+  use GenServer
 
-  @doc """
-  Hello world.
+  require Logger
 
-  ## Examples
+  def start_link(init_arg \\ []) do
+    GenServer.start_link(__MODULE__, init_arg, name: __MODULE__)
+  end
 
-      iex> ExTurn.hello()
-      :world
+  def add_listener(ip, port, transport) do
+    GenServer.call(__MODULE__, {:add_listener, ip, port, transport})
+  end
 
-  """
-  def hello do
-    :world
+  # Server API
+
+  @impl true
+  def init(_init_arg) do
+    {:ok, %{listeners: %{}}}
+  end
+
+  @impl true
+  def handle_call({:add_listener, ip, port, proto}, _from, state) do
+    Task.Supervisor.start_child(
+      ExTURN.ListenerSupervisor,
+      ExTURN.Listener,
+      :listen,
+      [
+        ip,
+        port,
+        proto
+      ],
+      restart: :permanent
+    )
+
+    {:reply, :ok, state}
   end
 end

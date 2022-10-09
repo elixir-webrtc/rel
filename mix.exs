@@ -14,6 +14,7 @@ defmodule ExTurn.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
+      mod: {ExTURN.App, []},
       extra_applications: [:logger]
     ]
   end
