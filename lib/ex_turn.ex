@@ -15,11 +15,21 @@ defmodule ExTURN do
 
   @impl true
   def init(_init_arg) do
-    {:ok, %{listeners: %{}}}
+    config = File.read!("config.toml")
+    {:ok, %{"ip" => _ip, "port" => port}} = Toml.decode(config)
+    # {:ok, ip} = :inet.parse_ipv4_address(ip)
+    ip = {127, 0, 0, 1}
+    do_add_listener(ip, port, :tcp)
+    {:ok, %{}}
   end
 
   @impl true
   def handle_call({:add_listener, ip, port, proto}, _from, state) do
+    add_listener(ip, port, proto)
+    {:reply, :ok, state}
+  end
+
+  defp do_add_listener(ip, port, proto) do
     Task.Supervisor.start_child(
       ExTURN.ListenerSupervisor,
       ExTURN.Listener,
@@ -31,7 +41,5 @@ defmodule ExTURN do
       ],
       restart: :permanent
     )
-
-    {:reply, :ok, state}
   end
 end
