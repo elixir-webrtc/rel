@@ -58,9 +58,22 @@ defmodule ExTURN.Client do
         Attribute.Realm.add_to_message(realm, response)
         |> Message.encode()
 
-      attr ->
+      {:ok, %Attribute.MessageIntegrity{} = attr} ->
         IO.inspect(msg)
         Logger.info("Got message integrity, #{inspect(attr)}")
+        {:ok, %Attribute.Username{value: username}} = Attribute.Username.get_from_message(msg)
+        {:ok, %Attribute.Realm{value: realm}} = Attribute.Realm.get_from_message(msg)
+
+        key = username <> ":" <> realm <> ":" <> "xxx"
+        key = :crypto.hash(:md5, key)
+        size = byte_size(msg.raw) - 24
+        <<msg_without_integrity::binary-size(size), _rest::binary>> = msg.raw
+        mac = :crypto.mac(:hmac, :sha, key, msg_without_integrity)
+        if mac == attr.value do
+          Logger.info("Request authenticated")
+        else
+          Logger.info("Bad message integrity")
+        end
         ""
     end
   end

@@ -15,7 +15,7 @@ defmodule ExTurn.MixProject do
   def application do
     [
       mod: {ExTURN.App, []},
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
