@@ -1,4 +1,4 @@
-defmodule ExTURN.Client do
+defmodule ExTURN.ClientHandler do
   require Logger
 
   alias ExStun.Message

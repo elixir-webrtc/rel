@@ -12,7 +12,7 @@ defmodule ExTURN.Listener do
     Logger.info("New incoming connection")
 
     {:ok, pid} =
-      Task.Supervisor.start_child(ExTURN.ClientSupervisor, ExTURN.Client, :serve, [client])
+      Task.Supervisor.start_child(ExTURN.ClientHandlerSupervisor, ExTURN.ClientHandler, :serve, [client])
 
     :ok = :gen_tcp.controlling_process(client, pid)
     accept_loop(socket)

@@ -8,7 +8,7 @@ defmodule ExTURN.App do
 
     children = [
       {Task.Supervisor, name: ExTURN.ListenerSupervisor},
-      {Task.Supervisor, name: ExTURN.ClientSupervisor},
+      {Task.Supervisor, name: ExTURN.ClientHandlerSupervisor},
       ExTURN
     ]
 
