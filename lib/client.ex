@@ -1,8 +1,12 @@
 defmodule ExTURN.Client do
   require Logger
 
+  alias ExStun.Message.Attribute.ExStun.Message.Attribute.Realm
+  alias ExStun.Message.Attribute.ExStun.Message.Attribute.MessageIntegrity
+  alias ExStun.Message.Attribute.ExStun.Message.Attribute.Nonce
   alias ExStun.Message
   alias ExStun.Message.{Attribute, Type}
+  alias ExStun.Message.Attribute.{ErrorCode, Nonce, MessageIntegrity, Realm, Username}
 
   def serve(socket) do
     receive do
@@ -35,7 +39,10 @@ defmodule ExTURN.Client do
   end
 
   defp handle_allocate_request(msg) do
-    authenticate(msg)
+    case authenticate(msg) do
+      :ok -> ""
+      {:error, response} -> response
+    end
   end
 
   defp handle_unknown_message(msg) do
@@ -43,38 +50,46 @@ defmodule ExTURN.Client do
   end
 
   defp authenticate(%Message{} = msg) do
-    # IO.inspect(msg)
-    case Attribute.MessageIntegrity.get_from_message(msg) do
+    case MessageIntegrity.get_from_message(msg) do
       nil ->
         Logger.info("No message integrity attribute. Seems like a new allocation.")
         type = %Type{class: :error_response, method: :allocate}
-        response = Message.new(msg.transaction_id, type)
-        nonce = %Attribute.Nonce{value: "testnonce"}
-        realm = %Attribute.Realm{value: "testrealm"}
-        error_code = %Attribute.ErrorCode{code: 401}
-        response = Attribute.Nonce.add_to_message(nonce, response)
-        response = Attribute.ErrorCode.add_to_message(error_code, response)
 
-        Attribute.Realm.add_to_message(realm, response)
-        |> Message.encode()
+        response =
+          Message.new(msg.transaction_id, type, [
+            %Nonce{value: "testnonce"},
+            %Realm{value: "testrealm"},
+            %ErrorCode{code: 401}
+          ])
+          |> Message.encode()
+
+        {:error, response}
 
       {:ok, %Attribute.MessageIntegrity{} = attr} ->
         IO.inspect(msg)
         Logger.info("Got message integrity, #{inspect(attr)}")
-        {:ok, %Attribute.Username{value: username}} = Attribute.Username.get_from_message(msg)
-        {:ok, %Attribute.Realm{value: realm}} = Attribute.Realm.get_from_message(msg)
+        {:ok, %Username{value: username}} = Username.get_from_message(msg)
+        {:ok, %Realm{value: realm}} = Realm.get_from_message(msg)
 
         key = username <> ":" <> realm <> ":" <> "xxx"
         key = :crypto.hash(:md5, key)
         size = byte_size(msg.raw) - 24
         <<msg_without_integrity::binary-size(size), _rest::binary>> = msg.raw
         mac = :crypto.mac(:hmac, :sha, key, msg_without_integrity)
+
         if mac == attr.value do
           Logger.info("Request authenticated")
+          :ok
         else
           Logger.info("Bad message integrity")
+          type = %Type{class: :error_response, method: :allocate}
+
+          response =
+            Message.new(msg.transaction_id, type, [%ErrorCode{code: 401}])
+            |> Message.encode()
+
+          {:error, response}
         end
-        ""
     end
   end
 end
