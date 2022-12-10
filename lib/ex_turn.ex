@@ -19,7 +19,7 @@ defmodule ExTURN do
     {:ok, %{"ip" => _ip, "port" => port}} = Toml.decode(config)
     # {:ok, ip} = :inet.parse_ipv4_address(ip)
     ip = {127, 0, 0, 1}
-    do_add_listener(ip, port, :tcp)
+    do_add_listener(ip, port, :udp)
     {:ok, %{}}
   end
 

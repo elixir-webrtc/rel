@@ -8,7 +8,8 @@ defmodule ExTURN.App do
 
     children = [
       {Task.Supervisor, name: ExTURN.ListenerSupervisor},
-      {Task.Supervisor, name: ExTURN.ClientHandlerSupervisor},
+      {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
+      {Registry, keys: :unique, name: Registry.Allocations},
       ExTURN
     ]
 
