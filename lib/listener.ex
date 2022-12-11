@@ -58,45 +58,58 @@ defmodule ExTURN.Listener do
   defp handle_message(socket, five_tuple, %Message{type: type} = msg) do
     case type do
       %Type{class: :request, method: :allocate} ->
-        case Utils.authenticate(msg) do
-          :ok ->
-            case Registry.lookup(Registry.Allocations, five_tuple) do
-              [{_allocation, _value}] ->
-                Logger.warn("Allocation mismatch #{inspect(five_tuple)}")
-                type = %Type{class: :error_response, method: :allocate}
-                Message.new(msg.transaction_id, type, [%ErrorCode{code: 437}])
-
-              [] ->
-                Logger.info(
-                  "No allocation for five tuple #{inspect(five_tuple)}. Creating allocation"
-                )
-
-                child_spec = %{
-                  id: five_tuple,
-                  start: {ExTURN.AllocationHandler, :start_link, [socket, five_tuple]}
-                }
-
-                DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
-                :ok
-            end
-
-          {:error, response} ->
-            response
-        end
+        handle_allocate_request(socket, five_tuple, msg)
 
       _other ->
-        case Registry.lookup(Registry.Allocations, five_tuple) do
-          [{allocation, _value}] ->
-            send(allocation, {:msg, msg})
-
-          [] ->
+        find_and_execute(
+          five_tuple,
+          on_success: fn allocation -> send(allocation, {:msg, msg}) end,
+          on_error: fn ->
             Logger.info("""
             No allocation for five tuple #{inspect(five_tuple)} and this is not an allocate request. \
             Ignoring message: #{inspect(msg)}"
             """)
-        end
+          end
+        )
 
         :ok
+    end
+  end
+
+  defp handle_allocate_request(socket, five_tuple, msg) do
+    case Utils.authenticate(msg) do
+      :ok ->
+        find_and_execute(
+          five_tuple,
+          on_success: fn _allocation ->
+            Logger.warn("Allocation mismatch #{inspect(five_tuple)}")
+            type = %Type{class: :error_response, method: :allocate}
+            Message.new(msg.transaction_id, type, [%ErrorCode{code: 437}])
+          end,
+          on_error: fn ->
+            Logger.info(
+              "No allocation for five tuple #{inspect(five_tuple)}. Creating allocation"
+            )
+
+            child_spec = %{
+              id: five_tuple,
+              start: {ExTURN.AllocationHandler, :start_link, [socket, five_tuple]}
+            }
+
+            DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
+            :ok
+          end
+        )
+
+      {:error, response} ->
+        response
+    end
+  end
+
+  defp find_and_execute(five_tuple, on_success: on_success, on_error: on_error) do
+    case Registry.lookup(Registry.Allocations, five_tuple) do
+      [{allocation, _value}] -> on_success.(allocation)
+      [] -> on_error.()
     end
   end
 end
