@@ -1,15 +1,19 @@
 defmodule ExTURN.Listener do
   require Logger
 
-  alias ExTURN.STUN.Attribute.AdditionalAddressFamily
-  alias ExTURN.STUN.Attribute.RequestedAddressFamily
-  alias ExTURN.STUN.Attribute.ReservationToken
-  alias ExTURN.STUN.Attribute.RequestedTransport
+  alias ExTURN.STUN.Attribute.{
+    AdditionalAddressFamily,
+    EvenPort,
+    RequestedTransport,
+    ReservationToken,
+    RequestedAddressFamily
+  }
+
+  alias ExTURN.Utils
+
   alias ExStun.Message
   alias ExStun.Message.Type
   alias ExStun.Message.Attribute.ErrorCode
-
-  alias ExTURN.Utils
 
   def listen(ip, port, :udp = proto) do
     Logger.info("Starting new listener ip: #{inspect(ip)}, port: #{port}, proto: #{proto}")
@@ -86,7 +90,9 @@ defmodule ExTURN.Listener do
          :ok <- check_requested_transport(msg),
          :ok <- check_dont_fragment(msg),
          {even_port, req_family, additional_family} <- get_addr_attributes(msg),
-         :ok <- check_reservation_token(msg, even_port, req_family, additional_family) do
+         :ok <- check_reservation_token(msg, even_port, req_family, additional_family),
+         :ok <- check_family(msg, req_family, additional_family),
+         :ok <- check_even_port(msg, additional_family) do
       Logger.info("No allocation for five tuple #{inspect(five_tuple)}. Creating allocation")
 
       child_spec = %{
@@ -158,7 +164,7 @@ defmodule ExTURN.Listener do
     # If the token is not valid for some reason, the server rejects
     # the request with a 508 (Insufficient Capacity) error.
     case ReservationToken.get_from_message(msg) do
-      {:ok, reservation_token} ->
+      {:ok, _reservation_token} ->
         if even_port or req_family or additional_family do
           type = %Type{class: :error_response, method: msg.type.method}
           response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
@@ -174,6 +180,76 @@ defmodule ExTURN.Listener do
       {:error, _reason} ->
         type = %Type{class: :error_response, method: msg.type.method}
         response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 500}])
+        {:error, response}
+
+      nil ->
+        :ok
+    end
+  end
+
+  defp check_family(msg, req_family, additional_family)
+       when req_family != nil and additional_family != nil do
+    # 6. The server checks if the request contains both REQUESTED-ADDRESS-FAMILY
+    # and ADDITIONAL-ADDRESS-FAMILY attributes. If yes, then the server rejects
+    # the request with a 400 (Bad Request) error
+    type = %Type{class: :error_response, method: msg.type.method}
+    response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
+    {:error, response}
+  end
+
+  defp check_family(msg, req_family, additional_family) do
+    # 7. If the server does not support the address family requested by the client
+    # in REQUESTED-ADDRESS-FAMILY, or if the allocation of the requested address
+    # family is disabled by local policy, it MUST generate an Allocate error response,
+    # and it MUST include an ERROR-CODE attribute with the 440 (Address Family not
+    # Supported) response code. If the REQUESTED-ADDRESS-FAMILY attribute is absent
+    # and the server does not support the IPv4 address family, the server MUST include
+    # an ERROR-CODE attribute with the 440 (Address Family not Supported) response code.
+    # If the REQUESTED-ADDRESS-FAMILY attribute is absent and the server supports
+    # the IPv4 address family, the server MUST allocate an IPv4 relayed transport
+    # address for the TURN client.
+    do_check_family(msg, req_family, additional_family)
+  end
+
+  defp do_check_family(_msg, %RequestedAddressFamily{family: :ipv4}, _additional_family) do
+    :ok
+  end
+
+  defp do_check_family(msg, %RequestedAddressFamily{family: :ipv6}, _additional_family) do
+    # TODO add support for ipv6
+    type = %Type{class: :error_response, method: msg.type.method}
+    response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 440}])
+    {:error, response}
+  end
+
+  defp do_check_family(_msg, nil, _additional_family) do
+    :ok
+  end
+
+  defp check_even_port(msg, additional_family) do
+    # 8. The server checks if the request contains an EVEN-PORT attribute
+    # with the R bit set to 1. If yes, and the request also contains an
+    # ADDITIONAL-ADDRESS-FAMILY attribute, the server rejects the request
+    # with a 400 (Bad Request) error. Otherwise, the server checks if it
+    # can satisfy the request (i.e., can allocate a relayed transport
+    # address as described below). If the server cannot satisfy the request,
+    # then the server rejects the request with a 508 (Insufficient Capacity) error.
+    case EvenPort.get_from_message(msg) do
+      {:ok, even_port} ->
+        if even_port.r and additional_family do
+          type = %Type{class: :error_response, method: msg.type.method}
+          response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
+          {:error, response}
+        else
+          # TODO add support for EVEN-PORT
+          type = %Type{class: :error_response, method: msg.type.method}
+          response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 508}])
+          {:error, response}
+        end
+
+      {:error, _reason} ->
+        type = %Type{class: :error_response, method: msg.type.method}
+        response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
         {:error, response}
 
       nil ->
