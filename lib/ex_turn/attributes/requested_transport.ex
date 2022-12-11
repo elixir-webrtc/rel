@@ -20,4 +20,5 @@ defmodule ExTURN.STUN.Attribute.RequestedTransport do
 
   defp decode(<<17, 0, 0, 0>>), do: {:ok, %__MODULE__{protocol: :udp}}
   defp decode(<<6, 0, 0, 0>>), do: {:ok, %__MODULE__{protocol: :tcp}}
+  defp decode(_other), do: {:error, :invalid_requested_transport}
 end

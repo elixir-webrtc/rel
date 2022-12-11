@@ -1,6 +1,9 @@
 defmodule ExTURN.Listener do
   require Logger
 
+  alias ExTURN.STUN.Attribute.AdditionalAddressFamily
+  alias ExTURN.STUN.Attribute.RequestedAddressFamily
+  alias ExTURN.STUN.Attribute.ReservationToken
   alias ExTURN.STUN.Attribute.RequestedTransport
   alias ExStun.Message
   alias ExStun.Message.Type
@@ -81,7 +84,9 @@ defmodule ExTURN.Listener do
     with :ok <- Utils.authenticate(msg),
          nil <- find_alloc(five_tuple),
          :ok <- check_requested_transport(msg),
-         :ok <- check_dont_fragment(msg) do
+         :ok <- check_dont_fragment(msg),
+         {even_port, req_family, additional_family} <- get_addr_attributes(msg),
+         :ok <- check_reservation_token(msg, even_port, req_family, additional_family) do
       Logger.info("No allocation for five tuple #{inspect(five_tuple)}. Creating allocation")
 
       child_spec = %{
@@ -124,7 +129,6 @@ defmodule ExTURN.Listener do
 
       _other ->
         Logger.warn("No or malformed REQUESTED-TRANSPORT. Rejecting.")
-        IO.inspect(msg)
         type = %Type{class: :error_response, method: msg.type.method}
         response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
         {:error, response}
@@ -141,6 +145,62 @@ defmodule ExTURN.Listener do
 
     # TODO handle this
     :ok
+  end
+
+  defp check_reservation_token(msg, even_port, req_family, additional_family) do
+    # The server checks if the request contains a RESERVATION-TOKEN
+    # attribute. If yes, and the request also contains an EVEN-PORT
+    # or REQUESTED-ADDRESS-FAMILY or ADDITIONAL-ADDRESS-FAMILY
+    # attribute, the server rejects the request with a 400 (Bad Request)
+    # error. Otherwise, it checks to see if the token is valid
+    # (i.e., the token is in range and has not expired, and the
+    # corresponding relayed transport address is still available).
+    # If the token is not valid for some reason, the server rejects
+    # the request with a 508 (Insufficient Capacity) error.
+    case ReservationToken.get_from_message(msg) do
+      {:ok, reservation_token} ->
+        if even_port or req_family or additional_family do
+          type = %Type{class: :error_response, method: msg.type.method}
+          response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
+          {:error, response}
+        else
+          # TODO check token
+          # for now we don't support reservation token
+          type = %Type{class: :error_response, method: msg.type.method}
+          response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
+          {:error, response}
+        end
+
+      {:error, _reason} ->
+        type = %Type{class: :error_response, method: msg.type.method}
+        response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 500}])
+        {:error, response}
+
+      nil ->
+        :ok
+    end
+  end
+
+  defp get_addr_attributes(msg) do
+    even_port =
+      case EvenPort.get_from_message(msg) do
+        {:ok, attr} -> attr
+        _other -> nil
+      end
+
+    requested_address_family =
+      case RequestedAddressFamily.get_from_message(msg) do
+        {:ok, attr} -> attr
+        _other -> nil
+      end
+
+    additional_address_family =
+      case AdditionalAddressFamily.get_from_message(msg) do
+        {:ok, attr} -> attr
+        _other -> nil
+      end
+
+    {even_port, requested_address_family, additional_address_family}
   end
 
   defp find_alloc(five_tuple) do
