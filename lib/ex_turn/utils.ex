@@ -22,7 +22,6 @@ defmodule ExTURN.Utils do
         {:error, response}
 
       {:ok, %MessageIntegrity{} = attr} ->
-        IO.inspect(msg)
         Logger.info("Got message integrity, #{inspect(attr)}")
         {:ok, %Username{value: username}} = Username.get_from_message(msg)
         {:ok, %Realm{value: realm}} = Realm.get_from_message(msg)
