@@ -35,7 +35,7 @@ defmodule ExTURN.Utils do
 
         if mac == attr.value do
           Logger.info("Request authenticated")
-          :ok
+          {:ok, key}
         else
           Logger.info("Bad message integrity")
           type = %Type{class: :error_response, method: :allocate}

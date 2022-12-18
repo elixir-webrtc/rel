@@ -1,6 +1,7 @@
 defmodule ExTURN.Listener do
   require Logger
 
+  alias ExStun.Message.Attribute.MessageIntegrity
   alias ExTURN.STUN.Attribute.{
     AdditionalAddressFamily,
     EvenPort,
@@ -87,7 +88,7 @@ defmodule ExTURN.Listener do
   end
 
   defp handle_allocate_request(_socket, five_tuple, msg) do
-    with :ok <- Utils.authenticate(msg),
+    with {:ok, key} <- Utils.authenticate(msg),
          nil <- find_alloc(five_tuple),
          :ok <- check_requested_transport(msg),
          :ok <- check_dont_fragment(msg),
@@ -114,6 +115,21 @@ defmodule ExTURN.Listener do
           %Lifetime{lifetime: 3600},
           %XORMappedAddress{family: :ipv4, port: client_port, address: client_ip}
         ])
+
+
+      text = Message.encode(response)
+
+      <<pre::binary-size(2), length::16, post::binary()>> = text
+      length = length + 24
+      text = <<pre::binary, length::16, post::binary>>
+      mac = :crypto.mac(:hmac, :sha, key, text)
+      integrity = %MessageIntegrity{value: mac}
+      raw_integrity = ExStun.Message.Attribute.to_raw_attribute(integrity, response)
+
+      response = Message.add_attribute(response, raw_integrity)
+
+
+      IO.inspect(response, label: :response)
 
       {:ok, alloc_socket} =
         :gen_udp.open(
