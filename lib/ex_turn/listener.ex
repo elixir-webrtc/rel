@@ -4,16 +4,18 @@ defmodule ExTURN.Listener do
   alias ExTURN.STUN.Attribute.{
     AdditionalAddressFamily,
     EvenPort,
+    Lifetime,
     RequestedTransport,
     ReservationToken,
-    RequestedAddressFamily
+    RequestedAddressFamily,
+    XORRelayedAddress
   }
 
   alias ExTURN.Utils
 
   alias ExStun.Message
   alias ExStun.Message.Type
-  alias ExStun.Message.Attribute.ErrorCode
+  alias ExStun.Message.Attribute.{ErrorCode, XORMappedAddress}
 
   def listen(ip, port, :udp = proto) do
     Logger.info("Starting new listener ip: #{inspect(ip)}, port: #{port}, proto: #{proto}")
@@ -84,7 +86,7 @@ defmodule ExTURN.Listener do
     end
   end
 
-  defp handle_allocate_request(socket, five_tuple, msg) do
+  defp handle_allocate_request(_socket, five_tuple, msg) do
     with :ok <- Utils.authenticate(msg),
          nil <- find_alloc(five_tuple),
          :ok <- check_requested_transport(msg),
@@ -93,15 +95,43 @@ defmodule ExTURN.Listener do
          :ok <- check_reservation_token(msg, even_port, req_family, additional_family),
          :ok <- check_family(msg, req_family, additional_family),
          :ok <- check_even_port(msg, additional_family) do
-      Logger.info("No allocation for five tuple #{inspect(five_tuple)}. Creating allocation")
+      Logger.info(
+        "No allocation for five tuple #{inspect(five_tuple)}. Creating a new allocation"
+      )
+
+      {_src_ip, _src_port, client_ip, client_port, _proto} = five_tuple
+
+      # TODO dont hardcode alloc address
+      alloc_port = Enum.random(49152..65535)
+      alloc_ip = {127, 0, 0, 1}
+
+      type = %Type{class: :success_response, method: msg.type.method}
+
+      response =
+        Message.new(msg.transaction_id, type, [
+          %XORRelayedAddress{family: :ipv4, port: alloc_port, address: alloc_ip},
+          # one hour
+          %Lifetime{lifetime: 3600},
+          %XORMappedAddress{family: :ipv4, port: client_port, address: client_ip}
+        ])
+
+      {:ok, alloc_socket} =
+        :gen_udp.open(
+          alloc_port,
+          inet_backend: :socket,
+          ifaddr: alloc_ip,
+          active: true,
+          recbuf: 1024 * 1024
+        )
 
       child_spec = %{
         id: five_tuple,
-        start: {ExTURN.AllocationHandler, :start_link, [socket, five_tuple]}
+        start: {ExTURN.AllocationHandler, :start_link, [alloc_socket, five_tuple]}
       }
 
-      DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
-      :ok
+      {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
+      :gen_udp.controlling_process(alloc_socket, alloc_pid)
+      response
     else
       {:error, response} ->
         response
