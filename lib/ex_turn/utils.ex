@@ -5,7 +5,7 @@ defmodule ExTURN.Utils do
   alias ExStun.Message.Type
   alias ExStun.Message.Attribute.{ErrorCode, Nonce, MessageIntegrity, Realm, Username}
 
-  @spec authenticate(Message.t()) :: :ok | {:error, Message.t()}
+  @spec authenticate(Message.t()) :: {:ok, String.t()} | {:error, Message.t()}
   def authenticate(%Message{} = msg) do
     case MessageIntegrity.get_from_message(msg) do
       nil ->

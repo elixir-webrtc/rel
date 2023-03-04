@@ -6,11 +6,18 @@ defmodule ExTURN.App do
   def start(_, _) do
     Logger.info("Starting ExTURN")
 
+    listen_ip = Application.get_env(:ex_turn, :ip, {127, 0, 0, 1})
+    listen_port = Application.get_env(:ex_turn, :port, 7878)
+
+    listener_child_spec = %{
+      id: ExTURN.Listener,
+      start: {Task, :start, [ExTURN.Listener, :listen, [listen_ip, listen_port]]}
+    }
+
     children = [
-      {Task.Supervisor, name: ExTURN.ListenerSupervisor},
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
-      ExTURN
+      listener_child_spec
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)

@@ -19,8 +19,8 @@ defmodule ExTURN.Listener do
   alias ExStun.Message.Type
   alias ExStun.Message.Attribute.{ErrorCode, XORMappedAddress}
 
-  def listen(ip, port, :udp = proto) do
-    Logger.info("Starting new listener ip: #{inspect(ip)}, port: #{port}, proto: #{proto}")
+  def listen(ip, port) do
+    Logger.info("Starting a new listener ip: #{inspect(ip)}, port: #{port}, proto: udp")
 
     {:ok, socket} =
       :gen_udp.open(
@@ -208,7 +208,7 @@ defmodule ExTURN.Listener do
     # the request with a 508 (Insufficient Capacity) error.
     case ReservationToken.get_from_message(msg) do
       {:ok, _reservation_token} ->
-        if even_port or req_family or additional_family do
+        if Enum.any?([even_port, req_family, additional_family], &(&1 != nil)) do
           type = %Type{class: :error_response, method: msg.type.method}
           response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 400}])
           {:error, response}
