@@ -88,7 +88,7 @@ defmodule ExTURN.Listener do
     end
   end
 
-  defp handle_allocate_request(_socket, five_tuple, msg) do
+  defp handle_allocate_request(listen_socket, five_tuple, msg) do
     with {:ok, key} <- Utils.authenticate(msg),
          nil <- find_alloc(five_tuple),
          :ok <- check_requested_transport(msg),
@@ -139,7 +139,7 @@ defmodule ExTURN.Listener do
 
       child_spec = %{
         id: five_tuple,
-        start: {ExTURN.AllocationHandler, :start_link, [alloc_socket, five_tuple]}
+        start: {ExTURN.AllocationHandler, :start_link, [listen_socket, alloc_socket, five_tuple]}
       }
 
       {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)

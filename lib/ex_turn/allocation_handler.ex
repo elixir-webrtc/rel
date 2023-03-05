@@ -5,18 +5,25 @@ defmodule ExTURN.AllocationHandler do
   alias ExStun.Message
   alias ExStun.Message.Type
 
-  def start_link(socket, five_tuple) do
+  def start_link(turn_socket, alloc_socket, five_tuple) do
     GenServer.start_link(
       __MODULE__,
-      [socket: socket, five_tuple: five_tuple],
+      [turn_socket: turn_socket, alloc_socket: alloc_socket, five_tuple: five_tuple],
       name: {:via, Registry, {Registry.Allocations, five_tuple}}
     )
   end
 
   @impl true
-  def init(socket: socket, five_tuple: five_tuple) do
+  def init(turn_socket: turn_socket, alloc_socket: socket, five_tuple: five_tuple) do
     Logger.info("Starting allocation handler #{inspect(five_tuple)}")
-    {:ok, %{socket: socket, five_tuple: five_tuple, permissions: MapSet.new()}}
+
+    {:ok,
+     %{
+       turn_socket: turn_socket,
+       socket: socket,
+       five_tuple: five_tuple,
+       permissions: MapSet.new()
+     }}
   end
 
   @impl true
@@ -36,7 +43,7 @@ defmodule ExTURN.AllocationHandler do
 
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    :gen_udp.send(state.socket, c_ip, c_port, response)
+    :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
     {:noreply, state}
   end
@@ -60,7 +67,7 @@ defmodule ExTURN.AllocationHandler do
 
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    :gen_udp.send(state.socket, c_ip, c_port, response)
+    :gen_udp.send(state.turn_socket, c_ip, c_port, response)
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :binding}} = msg, state) do
@@ -73,7 +80,7 @@ defmodule ExTURN.AllocationHandler do
       ])
       |> Message.encode()
 
-    :gen_udp.send(state.socket, c_ip, c_port, response)
+    :gen_udp.send(state.turn_socket, c_ip, c_port, response)
   end
 
   defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
