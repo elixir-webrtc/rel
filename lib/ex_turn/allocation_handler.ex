@@ -16,7 +16,7 @@ defmodule ExTURN.AllocationHandler do
   @impl true
   def init(socket: socket, five_tuple: five_tuple) do
     Logger.info("Starting allocation handler #{inspect(five_tuple)}")
-    {:ok, %{socket: socket, five_tuple: five_tuple}}
+    {:ok, %{socket: socket, five_tuple: five_tuple, permissions: MapSet.new()}}
   end
 
   @impl true
@@ -45,6 +45,22 @@ defmodule ExTURN.AllocationHandler do
   def handle_info(msg, state) do
     Logger.warn("Got unexpected msg: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
+    # FIXME handle multiple addresses
+    # FIXME assume that address is correct for now
+    {:ok, xor_addr} = ExTURN.STUN.Attribute.XORPeerAddress.get_from_message(msg)
+
+    # FIXME setup timer
+    state = %{state | permissions: MapSet.put(state.permissions, xor_addr.address)}
+
+    type = %Type{class: :success_response, method: msg.type.method}
+    response = Message.new(msg.transaction_id, type, []) |> Message.encode()
+
+    {c_ip, c_port, _, _, _} = state.five_tuple
+
+    :gen_udp.send(state.socket, c_ip, c_port, response)
   end
 
   defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
