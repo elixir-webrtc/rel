@@ -63,6 +63,19 @@ defmodule ExTURN.AllocationHandler do
     :gen_udp.send(state.socket, c_ip, c_port, response)
   end
 
+  defp handle_msg(%Message{type: %Type{class: :request, method: :binding}} = msg, state) do
+    {c_ip, c_port, _, _, _} = state.five_tuple
+    type = %Type{class: :success_response, method: msg.type.method}
+
+    response =
+      Message.new(msg.transaction_id, type, [
+        %ExStun.Message.Attribute.XORMappedAddress{family: :ipv4, port: c_port, address: c_ip}
+      ])
+      |> Message.encode()
+
+    :gen_udp.send(state.socket, c_ip, c_port, response)
+  end
+
   defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
     {:ok, xor_addr} = ExTURN.STUN.Attribute.XORPeerAddress.get_from_message(msg)
     {:ok, data} = ExTURN.STUN.Attribute.Data.get_from_message(msg)
