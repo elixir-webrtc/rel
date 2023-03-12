@@ -77,7 +77,7 @@ defmodule ExTURN.Listener do
           nil ->
             Logger.info("""
             No allocation for five tuple #{inspect(five_tuple)} and this is not an allocate request. \
-            Ignoring message: #{inspect(msg)}"
+            Ignoring message: #{inspect(msg)}\
             """)
 
           alloc ->
