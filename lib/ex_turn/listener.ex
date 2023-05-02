@@ -1,8 +1,6 @@
 defmodule ExTURN.Listener do
   require Logger
 
-  alias ExStun.Message.Attribute.MessageIntegrity
-
   alias ExTURN.STUN.Attribute.{
     AdditionalAddressFamily,
     EvenPort,
@@ -54,22 +52,34 @@ defmodule ExTURN.Listener do
     {:ok, {server_ip, server_port}} = :inet.sockname(socket)
     five_tuple = {client_ip, client_port, server_ip, server_port, :udp}
 
-    with {:ok, msg} <- ExStun.Message.decode(packet) do
-      case handle_message(socket, five_tuple, msg) do
-        :ok -> :ok
-        response -> :gen_udp.send(socket, {client_ip, client_port}, Message.encode(response))
-      end
-    else
-      {:error, reason} ->
-        Logger.warn("""
-        Couldn't decode STUN message, reason: #{inspect(reason)}, message: #{inspect(packet)}
-        """)
+    <<first_byte::8, _rest::binary>> = packet
+
+    cond do
+      first_byte in 0..3 ->
+        with {:ok, msg} <- ExStun.Message.decode(packet),
+             :ok <- handle_message(socket, five_tuple, msg) do
+          :ok
+        else
+          {:error, reason} ->
+            Logger.warn("""
+            Couldn't decode STUN message, reason: #{inspect(reason)}, message: #{inspect(packet)}
+            """)
+
+          response ->
+            :gen_udp.send(socket, {client_ip, client_port}, response)
+        end
+
+      first_byte in 64..79 ->
+        :ok = handle_message(socket, five_tuple, packet)
+
+      true ->
+        Logger.warn("Unexpected message type, first byte: #{first_byte}")
     end
   end
 
-  defp handle_message(socket, five_tuple, %Message{type: type} = msg) do
-    case type do
-      %Type{class: :request, method: :allocate} ->
+  defp handle_message(socket, five_tuple, msg) do
+    case msg do
+      %Message{type: %Type{class: :request, method: :allocate}} ->
         handle_allocate_request(socket, five_tuple, msg)
 
       _other ->
@@ -116,17 +126,7 @@ defmodule ExTURN.Listener do
           %Lifetime{lifetime: 3600},
           %XORMappedAddress{family: :ipv4, port: client_port, address: client_ip}
         ])
-
-      text = Message.encode(response)
-
-      <<pre::binary-size(2), length::16, post::binary>> = text
-      length = length + 24
-      text = <<pre::binary, length::16, post::binary>>
-      mac = :crypto.mac(:hmac, :sha, key, text)
-      integrity = %MessageIntegrity{value: mac}
-      raw_integrity = ExStun.Message.Attribute.to_raw_attribute(integrity, response)
-
-      response = Message.add_attribute(response, raw_integrity)
+        |> Message.encode_with_int(key)
 
       {:ok, alloc_socket} =
         :gen_udp.open(
@@ -147,12 +147,15 @@ defmodule ExTURN.Listener do
       response
     else
       {:error, response} ->
-        response
+        Message.encode(response)
 
-      _alloc ->
-        Logger.warn("Allocation mismatch #{inspect(five_tuple)}")
+      alloc ->
+        Logger.warn(
+          "Allocation mismatch #{inspect(alloc)} #{inspect(five_tuple)} #{inspect(msg)}"
+        )
+
         type = %Type{class: :error_response, method: :allocate}
-        Message.new(msg.transaction_id, type, [%ErrorCode{code: 437}])
+        Message.new(msg.transaction_id, type, [%ErrorCode{code: 437}]) |> Message.encode()
     end
   end
 

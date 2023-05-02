@@ -7,7 +7,7 @@ defmodule ExTURN.Utils do
 
   @auth_secret Application.compile_env!(:ex_turn, :auth_secret)
 
-  @spec authenticate(Message.t()) :: {:ok, String.t()} | {:error, Message.t()}
+  @spec authenticate(Message.t()) :: {:ok, binary()} | {:error, Message.t()}
   def authenticate(%Message{} = msg) do
     case MessageIntegrity.get_from_message(msg) do
       nil ->
@@ -26,7 +26,6 @@ defmodule ExTURN.Utils do
       {:ok, %MessageIntegrity{} = attr} ->
         Logger.info("Got message integrity, #{inspect(attr)}")
         {:ok, %Username{value: username}} = Username.get_from_message(msg)
-        {:ok, %Realm{value: realm}} = Realm.get_from_message(msg)
 
         [expiry_time, _name] = String.split(username, ":", parts: 2)
 
@@ -38,20 +37,16 @@ defmodule ExTURN.Utils do
         else
           password = :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
 
-          key = username <> ":" <> realm <> ":" <> password
-          key = :crypto.hash(:md5, key)
-          size = byte_size(msg.raw) - 24
-          <<msg_without_integrity::binary-size(size), _rest::binary>> = msg.raw
-          mac = :crypto.mac(:hmac, :sha, key, msg_without_integrity)
+          case Message.authenticate(msg, password) do
+            {:ok, key} ->
+              Logger.info("Request authenticated")
+              {:ok, key}
 
-          if mac == attr.value do
-            Logger.info("Request authenticated")
-            {:ok, key}
-          else
-            Logger.info("Bad message integrity")
-            type = %Type{class: :error_response, method: :allocate}
-            response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 401}])
-            {:error, response}
+            :error ->
+              Logger.info("Bad message integrity")
+              type = %Type{class: :error_response, method: :allocate}
+              response = Message.new(msg.transaction_id, type, [%ErrorCode{code: 401}])
+              {:error, response}
           end
         end
     end
