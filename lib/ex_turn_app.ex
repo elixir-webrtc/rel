@@ -6,8 +6,8 @@ defmodule ExTURN.App do
   def start(_, _) do
     Logger.info("Starting ExTURN")
 
-    listen_ip = Application.get_env(:ex_turn, :ip, {127, 0, 0, 1})
-    listen_port = Application.get_env(:ex_turn, :port, 7878)
+    listen_ip = Application.get_env(:ex_turn, :listen_ip, {0, 0, 0, 0})
+    listen_port = Application.get_env(:ex_turn, :listen_port, 7878)
 
     listener_child_spec = %{
       id: ExTURN.Listener,

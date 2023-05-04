@@ -17,6 +17,8 @@ defmodule ExTURN.Listener do
   alias ExStun.Message.Type
   alias ExStun.Message.Attribute.{ErrorCode, XORMappedAddress}
 
+  @default_alloc_ports MapSet.new(49152..65535)
+
   def listen(ip, port) do
     Logger.info("Starting a new listener ip: #{inspect(ip)}, port: #{port}, proto: udp")
 
@@ -113,9 +115,16 @@ defmodule ExTURN.Listener do
 
       {_src_ip, _src_port, client_ip, client_port, _proto} = five_tuple
 
-      # TODO dont hardcode alloc address
-      alloc_port = Enum.random(49152..65535)
-      alloc_ip = {127, 0, 0, 1}
+      used_alloc_ports =
+        Registry.Allocations
+        |> Registry.select([{{:_, :_, :"$3"}, [], [:"$3"]}])
+        |> MapSet.new()
+
+      # TODO handle empty set
+      available_alloc_ports = MapSet.difference(@default_alloc_ports, used_alloc_ports)
+
+      alloc_port = Enum.random(available_alloc_ports)
+      alloc_ip = Application.fetch_env!(:ex_turn, :public_ip)
 
       type = %Type{class: :success_response, method: msg.type.method}
 

@@ -8,10 +8,12 @@ defmodule ExTURN.AllocationHandler do
   alias ExTURN.Utils
 
   def start_link(turn_socket, alloc_socket, five_tuple) do
+    {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
+
     GenServer.start_link(
       __MODULE__,
       [turn_socket: turn_socket, alloc_socket: alloc_socket, five_tuple: five_tuple],
-      name: {:via, Registry, {Registry.Allocations, five_tuple}}
+      name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_port}}
     )
   end
 
