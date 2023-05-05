@@ -1,7 +1,7 @@
 defmodule ExTURN.Listener do
   require Logger
 
-  alias ExTURN.STUN.Attribute.{
+  alias ExTURN.Attribute.{
     AdditionalAddressFamily,
     EvenPort,
     Lifetime,
@@ -13,9 +13,9 @@ defmodule ExTURN.Listener do
 
   alias ExTURN.Utils
 
-  alias ExStun.Message
-  alias ExStun.Message.Type
-  alias ExStun.Message.Attribute.{ErrorCode, XORMappedAddress}
+  alias ExSTUN.Message
+  alias ExSTUN.Message.Type
+  alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
 
   @default_alloc_ports MapSet.new(49152..65535)
 
@@ -58,7 +58,7 @@ defmodule ExTURN.Listener do
 
     cond do
       first_byte in 0..3 ->
-        with {:ok, msg} <- ExStun.Message.decode(packet),
+        with {:ok, msg} <- ExSTUN.Message.decode(packet),
              :ok <- handle_message(socket, five_tuple, msg) do
           :ok
         else
@@ -178,7 +178,7 @@ defmodule ExTURN.Listener do
     # a protocol that is not supported by the server,
     # the server rejects the request with a 442
     # (Unsupported Transport Protocol) error.
-    case RequestedTransport.get_from_message(msg) do
+    case Message.get_attribute(msg, RequestedTransport) do
       {:ok, %RequestedTransport{protocol: :udp}} ->
         :ok
 
@@ -218,7 +218,7 @@ defmodule ExTURN.Listener do
     # corresponding relayed transport address is still available).
     # If the token is not valid for some reason, the server rejects
     # the request with a 508 (Insufficient Capacity) error.
-    case ReservationToken.get_from_message(msg) do
+    case Message.get_attribute(msg, ReservationToken) do
       {:ok, _reservation_token} ->
         if Enum.any?([even_port, req_family, additional_family], &(&1 != nil)) do
           type = %Type{class: :error_response, method: msg.type.method}
@@ -289,7 +289,7 @@ defmodule ExTURN.Listener do
     # can satisfy the request (i.e., can allocate a relayed transport
     # address as described below). If the server cannot satisfy the request,
     # then the server rejects the request with a 508 (Insufficient Capacity) error.
-    case EvenPort.get_from_message(msg) do
+    case Message.get_attribute(msg, EvenPort) do
       {:ok, even_port} ->
         if even_port.r and additional_family do
           type = %Type{class: :error_response, method: msg.type.method}
@@ -314,19 +314,19 @@ defmodule ExTURN.Listener do
 
   defp get_addr_attributes(msg) do
     even_port =
-      case EvenPort.get_from_message(msg) do
+      case Message.get_attribute(msg, EvenPort) do
         {:ok, attr} -> attr
         _other -> nil
       end
 
     requested_address_family =
-      case RequestedAddressFamily.get_from_message(msg) do
+      case Message.get_attribute(msg, RequestedAddressFamily) do
         {:ok, attr} -> attr
         _other -> nil
       end
 
     additional_address_family =
-      case AdditionalAddressFamily.get_from_message(msg) do
+      case Message.get_attribute(msg, AdditionalAddressFamily) do
         {:ok, attr} -> attr
         _other -> nil
       end

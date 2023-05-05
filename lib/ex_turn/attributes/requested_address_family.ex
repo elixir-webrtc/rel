@@ -1,5 +1,7 @@
-defmodule ExTURN.STUN.Attribute.RequestedAddressFamily do
-  alias ExStun.Message
+defmodule ExTURN.Attribute.RequestedAddressFamily do
+  alias ExSTUN.Message.RawAttribute
+
+  @behaviour ExSTUN.Message.Attribute
 
   @attr_type 0x0017
 
@@ -10,13 +12,12 @@ defmodule ExTURN.STUN.Attribute.RequestedAddressFamily do
   @enforce_keys [:family]
   defstruct @enforce_keys
 
-  @spec get_from_message(Message.t()) ::
-          {:ok, t()} | {:error, :invalid_requested_address_family} | nil
-  def get_from_message(message) do
-    case Message.get_attribute(message, @attr_type) do
-      nil -> nil
-      raw_attr -> decode(raw_attr.value)
-    end
+  @impl true
+  def type(), do: @attr_type
+
+  @impl true
+  def from_raw(%RawAttribute{} = raw_attr, _message) do
+    decode(raw_attr.value)
   end
 
   defp decode(<<0x01, 0, 0, 0>>), do: {:ok, %__MODULE__{family: :ipv4}}

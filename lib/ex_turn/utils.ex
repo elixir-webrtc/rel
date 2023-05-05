@@ -1,15 +1,15 @@
 defmodule ExTURN.Utils do
   require Logger
 
-  alias ExStun.Message
-  alias ExStun.Message.Type
-  alias ExStun.Message.Attribute.{ErrorCode, Nonce, MessageIntegrity, Realm, Username}
+  alias ExSTUN.Message
+  alias ExSTUN.Message.Type
+  alias ExSTUN.Message.Attribute.{ErrorCode, Nonce, MessageIntegrity, Realm, Username}
 
   @auth_secret Application.compile_env!(:ex_turn, :auth_secret)
 
   @spec authenticate(Message.t()) :: {:ok, binary()} | {:error, Message.t()}
   def authenticate(%Message{} = msg) do
-    case MessageIntegrity.get_from_message(msg) do
+    case Message.get_attribute(msg, MessageIntegrity) do
       nil ->
         Logger.info("No message integrity attribute. Seems like a new allocation.")
         type = %Type{class: :error_response, method: :allocate}
@@ -25,7 +25,7 @@ defmodule ExTURN.Utils do
 
       {:ok, %MessageIntegrity{} = attr} ->
         Logger.info("Got message integrity, #{inspect(attr)}")
-        {:ok, %Username{value: username}} = Username.get_from_message(msg)
+        {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
 
         [expiry_time, _name] = String.split(username, ":", parts: 2)
 

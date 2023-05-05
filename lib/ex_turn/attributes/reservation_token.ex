@@ -1,5 +1,7 @@
-defmodule ExTURN.STUN.Attribute.ReservationToken do
-  alias ExStun.Message
+defmodule ExTURN.Attribute.ReservationToken do
+  alias ExSTUN.Message.RawAttribute
+
+  @behaviour ExSTUN.Message.Attribute
 
   @attr_type 0x0022
 
@@ -10,12 +12,12 @@ defmodule ExTURN.STUN.Attribute.ReservationToken do
   @enforce_keys [:token]
   defstruct @enforce_keys
 
-  @spec get_from_message(Message.t()) :: {:ok, t()} | {:error, :invalid_reservation_token} | nil
-  def get_from_message(message) do
-    case Message.get_attribute(message, @attr_type) do
-      nil -> nil
-      raw_attr -> decode(raw_attr.value)
-    end
+  @impl true
+  def type(), do: @attr_type
+
+  @impl true
+  def from_raw(%RawAttribute{} = raw_attr, _message) do
+    decode(raw_attr.value)
   end
 
   defp decode(<<token::binary-size(8)>>), do: {:ok, %__MODULE__{token: token}}

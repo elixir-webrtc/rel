@@ -2,10 +2,12 @@ defmodule ExTURN.AllocationHandler do
   use GenServer
   require Logger
 
-  alias ExStun.Message
-  alias ExStun.Message.Type
-  alias ExStun.Message.Attribute.ErrorCode
+  alias ExSTUN.Message
+  alias ExSTUN.Message.Type
+  alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
+
   alias ExTURN.Utils
+  alias ExTURN.Attribute.{ChannelNumber, Data, XORPeerAddress}
 
   def start_link(turn_socket, alloc_socket, five_tuple) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
@@ -40,8 +42,8 @@ defmodule ExTURN.AllocationHandler do
   @impl true
   def handle_info({:udp, _socket, ip, port, packet}, state) do
     packet = IO.iodata_to_binary(packet)
-    xor_addr = %ExTURN.STUN.Attribute.XORPeerAddress{family: :ipv4, port: port, address: ip}
-    data = %ExTURN.STUN.Attribute.Data{value: packet}
+    xor_addr = %XORPeerAddress{family: :ipv4, port: port, address: ip}
+    data = %Data{value: packet}
 
     type = %Type{class: :indication, method: :data}
     response = Message.new(type, [xor_addr, data]) |> Message.encode()
@@ -66,7 +68,7 @@ defmodule ExTURN.AllocationHandler do
       {:ok, key} ->
         # FIXME handle multiple addresses
         # FIXME assume that address is correct for now
-        {:ok, xor_addr} = ExTURN.STUN.Attribute.XORPeerAddress.get_from_message(msg)
+        {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
 
         # FIXME setup timer
         state = %{state | permissions: MapSet.put(state.permissions, xor_addr.address)}
@@ -89,7 +91,7 @@ defmodule ExTURN.AllocationHandler do
 
     response =
       Message.new(msg.transaction_id, type, [
-        %ExStun.Message.Attribute.XORMappedAddress{family: :ipv4, port: c_port, address: c_ip}
+        %XORMappedAddress{family: :ipv4, port: c_port, address: c_ip}
       ])
       |> Message.encode()
 
@@ -99,10 +101,10 @@ defmodule ExTURN.AllocationHandler do
   end
 
   defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
-    {:ok, xor_addr} = ExTURN.STUN.Attribute.XORPeerAddress.get_from_message(msg)
-    {:ok, data} = ExTURN.STUN.Attribute.Data.get_from_message(msg)
+    {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
+    {:ok, data} = Message.get_attribute(msg, Data)
 
-    :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data.value.value)
+    :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data.value)
 
     state
   end
@@ -112,8 +114,8 @@ defmodule ExTURN.AllocationHandler do
 
     case Utils.authenticate(msg) do
       {:ok, key} ->
-        {:ok, channel_num} = ExTURN.STUN.Attribute.ChannelNumber.get_from_message(msg)
-        {:ok, xor_addr} = ExTURN.STUN.Attribute.XORPeerAddress.get_from_message(msg)
+        {:ok, channel_num} = Message.get_attribute(msg, ChannelNumber)
+        {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
 
         {response, state} =
           if xor_addr.family != :ipv4 do
@@ -125,7 +127,6 @@ defmodule ExTURN.AllocationHandler do
             {msg, state}
           else
             state = put_in(state, [:channels, channel_num.number], xor_addr)
-            Logger.warn("#{inspect(channel_num)}, #{inspect(state)}")
             type = %Type{class: :success_response, method: msg.type.method}
             msg = Message.new(msg.transaction_id, type, []) |> Message.encode_with_int(key)
             {msg, state}

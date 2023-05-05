@@ -1,5 +1,7 @@
-defmodule ExTURN.STUN.Attribute.Data do
-  alias ExStun.Message
+defmodule ExTURN.Attribute.Data do
+  alias ExSTUN.Message.RawAttribute
+
+  @behaviour ExSTUN.Message.Attribute
 
   @attr_type 0x0013
 
@@ -10,22 +12,16 @@ defmodule ExTURN.STUN.Attribute.Data do
   @enforce_keys [:value]
   defstruct @enforce_keys
 
-  @spec get_from_message(Message.t()) :: {:ok, t()} | {:error, :data} | nil
-  def get_from_message(message) do
-    case Message.get_attribute(message, @attr_type) do
-      nil -> nil
-      raw_attr -> {:ok, %__MODULE__{value: raw_attr}}
-    end
+  @impl true
+  def type(), do: @attr_type
+
+  @impl true
+  def from_raw(%RawAttribute{} = raw_attr, _message) do
+    {:ok, %__MODULE__{value: raw_attr.value}}
   end
-end
 
-defimpl ExStun.Message.Attribute, for: ExTURN.STUN.Attribute.Data do
-  alias ExTURN.STUN.Attribute.Data
-  alias ExStun.Message.RawAttribute
-
-  @attr_type 0x0013
-
-  def to_raw_attribute(%Data{value: value}, _msg) do
+  @impl true
+  def to_raw(%__MODULE__{value: value}, _message) do
     %RawAttribute{type: @attr_type, value: value}
   end
 end

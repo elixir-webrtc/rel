@@ -1,5 +1,7 @@
-defmodule ExTURN.STUN.Attribute.EvenPort do
-  alias ExStun.Message
+defmodule ExTURN.Attribute.EvenPort do
+  alias ExSTUN.Message.RawAttribute
+
+  @behaviour ExSTUN.Message.Attribute
 
   @attr_type 0x0018
 
@@ -10,12 +12,12 @@ defmodule ExTURN.STUN.Attribute.EvenPort do
   @enforce_keys [:r]
   defstruct @enforce_keys
 
-  @spec get_from_message(Message.t()) :: {:ok, t()} | {:error, :invalid_even_port} | nil
-  def get_from_message(message) do
-    case Message.get_attribute(message, @attr_type) do
-      nil -> nil
-      raw_attr -> decode(raw_attr.value)
-    end
+  @impl true
+  def type(), do: @attr_type
+
+  @impl true
+  def from_raw(%RawAttribute{} = raw_attr, _message) do
+    decode(raw_attr.value)
   end
 
   defp decode(<<1::1, 0::7>>), do: {:ok, %__MODULE__{r: true}}
