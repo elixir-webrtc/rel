@@ -9,3 +9,5 @@ config :ex_turn,
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:file, :line]
+
+import_config "#{config_env()}.exs"
