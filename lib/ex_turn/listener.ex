@@ -25,10 +25,13 @@ defmodule ExTURN.Listener do
     {:ok, socket} =
       :gen_udp.open(
         port,
-        inet_backend: :socket,
-        ifaddr: ip,
-        active: false,
-        recbuf: 1024 * 1024
+        [
+          {:inet_backend, :socket},
+          {:ifaddr, ip},
+          {:active, false},
+          {:recbuf, 1024 * 1024},
+          :binary
+        ]
       )
 
     spawn(ExTURN.Monitor, :start, [self(), socket])
@@ -62,7 +65,6 @@ defmodule ExTURN.Listener do
 
     case :gen_udp.recv(socket, 0, next_timeout) do
       {:ok, {client_addr, client_port, packet}} ->
-        packet = :binary.list_to_bin(packet)
         process(socket, client_addr, client_port, packet)
         recv_loop(socket, %{state | in_bytes: state.in_bytes + byte_size(packet)})
 
@@ -166,10 +168,13 @@ defmodule ExTURN.Listener do
       {:ok, alloc_socket} =
         :gen_udp.open(
           alloc_port,
-          inet_backend: :socket,
-          ifaddr: alloc_ip,
-          active: true,
-          recbuf: 1024 * 1024
+          [
+            {:inet_backend, :socket},
+            {:ifaddr, alloc_ip},
+            {:active, true},
+            {:recbuf, 1024 * 1024},
+            :binary
+          ]
         )
 
       child_spec = %{

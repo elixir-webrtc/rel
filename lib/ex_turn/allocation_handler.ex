@@ -51,7 +51,6 @@ defmodule ExTURN.AllocationHandler do
 
   @impl true
   def handle_info({:udp, _socket, ip, port, packet}, state) do
-    packet = IO.iodata_to_binary(packet)
     xor_addr = %XORPeerAddress{family: :ipv4, port: port, address: ip}
     data = %Data{value: packet}
 
