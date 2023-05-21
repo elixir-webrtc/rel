@@ -15,11 +15,23 @@ defmodule ExTURN.App do
     }
 
     children = [
+      {TelemetryMetricsPrometheus, metrics: metrics()},
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
       listener_child_spec
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)
+  end
+
+  defp metrics() do
+    import Telemetry.Metrics
+
+    [
+      last_value("listener.in_bitrate", tags: [:listener_id]),
+      last_value("listener.out_bitrate", tags: [:listener_id]),
+      last_value("allocation.in_bitrate", tags: [:allocation_id]),
+      last_value("allocation.out_bitrate", tags: [:allocation_id])
+    ]
   end
 end

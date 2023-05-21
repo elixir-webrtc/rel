@@ -23,13 +23,23 @@ defmodule ExTURN.AllocationHandler do
   def init(turn_socket: turn_socket, alloc_socket: socket, five_tuple: five_tuple) do
     Logger.info("Starting allocation handler #{inspect(five_tuple)}")
 
+    Process.send_after(self(), :measure_bitrate, 1000)
+
     {:ok,
      %{
+       alloc_id: "#{inspect(five_tuple)}",
        turn_socket: turn_socket,
        socket: socket,
        five_tuple: five_tuple,
        permissions: MapSet.new(),
-       channels: %{}
+       channels: %{},
+
+       # stats
+       # bytes sent by the client
+       out_bytes: 0,
+       # bytes sent to the client
+       in_bytes: 0,
+       last_check: System.monotonic_time(:second)
      }}
   end
 
@@ -51,6 +61,26 @@ defmodule ExTURN.AllocationHandler do
     {c_ip, c_port, _, _, _} = state.five_tuple
 
     :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+
+    state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:measure_bitrate, state) do
+    now = System.monotonic_time(:second)
+
+    in_bitrate = state.in_bytes / (now - state.last_check)
+    out_bitrate = state.out_bytes / (now - state.last_check)
+
+    :telemetry.execute([:allocation], %{in_bitrate: in_bitrate, out_bitrate: out_bitrate}, %{
+      allocation_id: state.alloc_id
+    })
+
+    state = %{state | in_bytes: 0, out_bytes: 0, last_check: now}
+
+    Process.send_after(self(), :measure_bitrate, 1000)
 
     {:noreply, state}
   end
@@ -106,7 +136,7 @@ defmodule ExTURN.AllocationHandler do
 
     :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data.value)
 
-    state
+    %{state | out_bytes: state.out_bytes + byte_size(data.value)}
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
@@ -146,7 +176,8 @@ defmodule ExTURN.AllocationHandler do
        when channel_num in [0x4000, 0x4FFF] do
     xor_addr = Map.fetch!(state.channels, channel_num)
     :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data)
-    state
+
+    %{state | out_bytes: state.out_bytes + byte_size(data)}
   end
 
   # defp handle_msg(<<channel_num::16, len::16, data::binary>>, state) do

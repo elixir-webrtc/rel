@@ -24,6 +24,13 @@ defmodule ExTurn.MixProject do
     [
       {:toml, "~> 0.7"},
       {:ex_stun, github: "elixir-webrtc/ex_stun"},
+
+      # telemetry
+      {:telemetry, "~> 1.0"},
+      {:telemetry_metrics, "~> 0.6.1"},
+      {:telemetry_metrics_prometheus, "~> 1.1.0"},
+
+      # dev
       {:dialyxir, "~> 1.2", only: [:dev, :test], runtime: false}
     ]
   end
