@@ -33,15 +33,41 @@ defmodule ExTURN.Listener do
 
     spawn(ExTURN.Monitor, :start, [self(), socket])
 
-    recv_loop(socket)
+    recv_loop(socket, %{
+      listener_id: "#{inspect(ip)}, #{port}, udp",
+      in_bytes: 0,
+      last_stats_check: System.monotonic_time(:millisecond),
+      next_stats_check: System.monotonic_time(:millisecond) + 1000
+    })
   end
 
-  defp recv_loop(socket) do
-    case :gen_udp.recv(socket, 0) do
+  defp recv_loop(socket, state) do
+    now = System.monotonic_time(:millisecond)
+    rem_timeout = state.next_stats_check - now
+
+    {next_timeout, state} =
+      if rem_timeout <= 0 do
+        duration = now - state.last_stats_check
+        in_bitrate = state.in_bytes / (duration / 1000)
+
+        :telemetry.execute([:listener], %{in_bitrate: in_bitrate}, %{
+          listener_id: state.listener_id
+        })
+
+        next_stats_check = System.monotonic_time(:millisecond) + 1000
+        {1000, %{state | in_bytes: 0, last_stats_check: now, next_stats_check: next_stats_check}}
+      else
+        {rem_timeout, state}
+      end
+
+    case :gen_udp.recv(socket, 0, next_timeout) do
       {:ok, {client_addr, client_port, packet}} ->
         packet = :binary.list_to_bin(packet)
         process(socket, client_addr, client_port, packet)
-        recv_loop(socket)
+        recv_loop(socket, %{state | in_bytes: state.in_bytes + byte_size(packet)})
+
+      {:error, :timeout} ->
+        recv_loop(socket, state)
 
       {:error, reason} ->
         Logger.error(

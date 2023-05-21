@@ -28,7 +28,8 @@ defmodule ExTurn.MixProject do
       # telemetry
       {:telemetry, "~> 1.0"},
       {:telemetry_metrics, "~> 0.6.1"},
-      {:telemetry_metrics_prometheus, "~> 1.1.0"},
+      {:telemetry_metrics_prometheus, "~> 1.1"},
+      {:telemetry_poller, "~> 1.0"},
 
       # dev
       {:dialyxir, "~> 1.2", only: [:dev, :test], runtime: false}

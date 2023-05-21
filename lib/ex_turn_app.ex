@@ -29,9 +29,14 @@ defmodule ExTURN.App do
 
     [
       last_value("listener.in_bitrate", tags: [:listener_id]),
-      last_value("listener.out_bitrate", tags: [:listener_id]),
       last_value("allocation.in_bitrate", tags: [:allocation_id]),
-      last_value("allocation.out_bitrate", tags: [:allocation_id])
+      last_value("allocation.out_bitrate", tags: [:allocation_id]),
+
+      # telemetry poller
+      last_value("vm.memory.total", unit: :byte),
+      last_value("vm.total_run_queue_lengths.total"),
+      last_value("vm.total_run_queue_lengths.cpu"),
+      last_value("vm.total_run_queue_lengths.io")
     ]
   end
 end
