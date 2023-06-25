@@ -37,7 +37,7 @@ defmodule ExTURN.Utils do
         else
           password = :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
 
-          case Message.authenticate(msg, password) do
+          case Message.authenticate_lt(msg, password) do
             {:ok, key} ->
               Logger.info("Request authenticated")
               {:ok, key}
@@ -56,4 +56,8 @@ defmodule ExTURN.Utils do
   def generate_password(username) do
     :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
   end
+
+  @spec family(:inet.ipaddress()) :: boolean()
+  def family({_, _, _, _}), do: :ipv4
+  def family({_, _, _, _, _, _, _, _}), do: :ipv4
 end

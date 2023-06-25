@@ -7,12 +7,11 @@ defmodule ExTURN.Attribute.XORRelayedAddress do
   @attr_type 0x0016
 
   @type t() :: %__MODULE__{
-          family: :ipv4 | :ipv6,
           port: 0..65_535,
           address: :inet.ip_address()
         }
 
-  @enforce_keys [:family, :port, :address]
+  @enforce_keys [:port, :address]
   defstruct @enforce_keys
 
   @impl true
@@ -21,7 +20,6 @@ defmodule ExTURN.Attribute.XORRelayedAddress do
   @impl true
   def to_raw(%__MODULE__{} = attribute, message) do
     mapped_address = %XORMappedAddress{
-      family: attribute.family,
       port: attribute.port,
       address: attribute.address
     }

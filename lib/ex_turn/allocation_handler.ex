@@ -2,6 +2,8 @@ defmodule ExTURN.AllocationHandler do
   use GenServer
   require Logger
 
+  import ExTURN.Utils
+
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
@@ -51,7 +53,7 @@ defmodule ExTURN.AllocationHandler do
 
   @impl true
   def handle_info({:udp, _socket, ip, port, packet}, state) do
-    xor_addr = %XORPeerAddress{family: :ipv4, port: port, address: ip}
+    xor_addr = %XORPeerAddress{port: port, address: ip}
     data = %Data{value: packet}
 
     type = %Type{class: :indication, method: :data}
@@ -103,7 +105,12 @@ defmodule ExTURN.AllocationHandler do
         state = %{state | permissions: MapSet.put(state.permissions, xor_addr.address)}
 
         type = %Type{class: :success_response, method: msg.type.method}
-        response = Message.new(msg.transaction_id, type, []) |> Message.encode_with_int(key)
+
+        response =
+          msg.transaction_id
+          |> Message.new(type, [])
+          |> Message.with_integrity(key)
+          |> Message.encode()
 
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         state
@@ -120,7 +127,7 @@ defmodule ExTURN.AllocationHandler do
 
     response =
       Message.new(msg.transaction_id, type, [
-        %XORMappedAddress{family: :ipv4, port: c_port, address: c_ip}
+        %XORMappedAddress{port: c_port, address: c_ip}
       ])
       |> Message.encode()
 
@@ -147,7 +154,7 @@ defmodule ExTURN.AllocationHandler do
         {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
 
         {response, state} =
-          if xor_addr.family != :ipv4 do
+          if family(xor_addr.address) != :ipv4 do
             type = %Type{class: :error_response, method: msg.type.method}
 
             msg =
@@ -157,7 +164,13 @@ defmodule ExTURN.AllocationHandler do
           else
             state = put_in(state, [:channels, channel_num.number], xor_addr)
             type = %Type{class: :success_response, method: msg.type.method}
-            msg = Message.new(msg.transaction_id, type, []) |> Message.encode_with_int(key)
+
+            msg =
+              msg.transaction_id
+              |> Message.new(type, [])
+              |> Message.with_integrity(key)
+              |> Message.encode()
+
             {msg, state}
           end
 

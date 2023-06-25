@@ -158,12 +158,13 @@ defmodule ExTURN.Listener do
 
       response =
         Message.new(msg.transaction_id, type, [
-          %XORRelayedAddress{family: :ipv4, port: alloc_port, address: alloc_ip},
+          %XORRelayedAddress{port: alloc_port, address: alloc_ip},
           # one hour
           %Lifetime{lifetime: 3600},
-          %XORMappedAddress{family: :ipv4, port: client_port, address: client_ip}
+          %XORMappedAddress{port: client_port, address: client_ip}
         ])
-        |> Message.encode_with_int(key)
+        |> Message.with_integrity(key)
+        |> Message.encode()
 
       {:ok, alloc_socket} =
         :gen_udp.open(

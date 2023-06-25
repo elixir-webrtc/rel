@@ -12,12 +12,11 @@ defmodule ExTURN.Attribute.XORPeerAddress do
   @attr_type 0x0012
 
   @type t() :: %__MODULE__{
-          family: :ipv4 | :ipv6,
           port: 0..65_535,
           address: :inet.ip_address()
         }
 
-  @enforce_keys [:family, :port, :address]
+  @enforce_keys [:port, :address]
   defstruct @enforce_keys
 
   @impl true
@@ -27,8 +26,7 @@ defmodule ExTURN.Attribute.XORPeerAddress do
   def from_raw(%RawAttribute{} = raw_attr, message) do
     case XORMappedAddress.from_raw(raw_attr, message) do
       {:ok, xor_addr} ->
-        {:ok,
-         %__MODULE__{family: xor_addr.family, port: xor_addr.port, address: xor_addr.address}}
+        {:ok, %__MODULE__{port: xor_addr.port, address: xor_addr.address}}
 
       error ->
         error
@@ -38,7 +36,6 @@ defmodule ExTURN.Attribute.XORPeerAddress do
   @impl true
   def to_raw(%__MODULE__{} = attribute, message) do
     mapped_address = %XORMappedAddress{
-      family: attribute.family,
       port: attribute.port,
       address: attribute.address
     }
