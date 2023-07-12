@@ -1,0 +1,40 @@
+on: push
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: lint OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ['25']
+        elixir: ['1.13.2']
+    steps:
+      - uses: actions/checkout@v2
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - run: mix deps.get
+      - run: mix credo
+      - run: mix format --check-formatted
+      - run: mix docs 2>&1 | (! grep -q "warning:")
+
+  test:
+    runs-on: ubuntu-latest
+    name: test OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ['25']
+        elixir: ['1.13.2']
+    env:
+      MIX_ENV: test
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - run: mix deps.get
+      - run: mix coveralls.json
+      - uses: codecov/codecov-action@v3
