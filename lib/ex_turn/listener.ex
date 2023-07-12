@@ -15,7 +15,7 @@ defmodule ExTURN.Listener do
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
-  alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
+  alias ExSTUN.Message.Attribute.{ErrorCode, Username, XORMappedAddress}
 
   @default_alloc_ports MapSet.new(49152..65535)
 
@@ -107,25 +107,43 @@ defmodule ExTURN.Listener do
     end
   end
 
-  defp handle_message(socket, five_tuple, msg) do
-    case msg do
-      %Message{type: %Type{class: :request, method: :allocate}} ->
-        handle_allocate_request(socket, five_tuple, msg)
+  defp handle_message(
+         socket,
+         five_tuple,
+         %Message{type: %Type{class: :request, method: :binding}} = msg
+       ) do
+    {c_ip, c_port, _, _, _} = five_tuple
+    type = %Type{class: :success_response, method: :binding}
 
-      _other ->
-        case find_alloc(five_tuple) do
-          nil ->
-            Logger.info("""
-            No allocation for five tuple #{inspect(five_tuple)} and this is not an allocate request. \
-            Ignoring message: #{inspect(msg)}\
-            """)
+    response =
+      Message.new(msg.transaction_id, type, [
+        %XORMappedAddress{port: c_port, address: c_ip}
+      ])
+      |> Message.encode()
 
-          alloc ->
-            send(alloc, {:msg, msg})
-        end
+    :gen_udp.send(socket, c_ip, c_port, response)
+  end
 
-        :ok
+  defp handle_message(
+         socket,
+         five_tuple,
+         %Message{type: %Type{class: :request, method: :allocate}} = msg
+       ),
+       do: handle_allocate_request(socket, five_tuple, msg)
+
+  defp handle_message(_socket, five_tuple, msg) do
+    case find_alloc(five_tuple) do
+      nil ->
+        Logger.info("""
+        No allocation for five tuple #{inspect(five_tuple)} and this is not an allocate request. \
+        Ignoring message: #{inspect(msg)}\
+        """)
+
+      alloc ->
+        send(alloc, {:msg, msg})
     end
+
+    :ok
   end
 
   defp handle_allocate_request(listen_socket, five_tuple, msg) do
@@ -178,9 +196,13 @@ defmodule ExTURN.Listener do
           ]
         )
 
+      username = Message.get_attribute(msg, Username)
+
       child_spec = %{
         id: five_tuple,
-        start: {ExTURN.AllocationHandler, :start_link, [listen_socket, alloc_socket, five_tuple]}
+        start:
+          {ExTURN.AllocationHandler, :start_link,
+           [listen_socket, alloc_socket, five_tuple, username]}
       }
 
       {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)

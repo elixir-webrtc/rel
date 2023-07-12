@@ -11,18 +11,28 @@ defmodule ExTURN.AllocationHandler do
   alias ExTURN.Utils
   alias ExTURN.Attribute.{ChannelNumber, Data, XORPeerAddress}
 
-  def start_link(turn_socket, alloc_socket, five_tuple) do
+  def start_link(turn_socket, alloc_socket, five_tuple, username) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
 
     GenServer.start_link(
       __MODULE__,
-      [turn_socket: turn_socket, alloc_socket: alloc_socket, five_tuple: five_tuple],
+      [
+        turn_socket: turn_socket,
+        alloc_socket: alloc_socket,
+        five_tuple: five_tuple,
+        username: username
+      ],
       name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_port}}
     )
   end
 
   @impl true
-  def init(turn_socket: turn_socket, alloc_socket: socket, five_tuple: five_tuple) do
+  def init(
+        turn_socket: turn_socket,
+        alloc_socket: socket,
+        five_tuple: five_tuple,
+        username: username
+      ) do
     Logger.info("Starting allocation handler #{inspect(five_tuple)}")
 
     Process.send_after(self(), :measure_bitrate, 1000)
@@ -33,6 +43,7 @@ defmodule ExTURN.AllocationHandler do
        turn_socket: turn_socket,
        socket: socket,
        five_tuple: five_tuple,
+       username: username,
        permissions: MapSet.new(),
        channels: %{},
 
@@ -95,7 +106,7 @@ defmodule ExTURN.AllocationHandler do
   defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    case Utils.authenticate(msg) do
+    case Utils.authenticate(msg, username: state.username) do
       {:ok, key} ->
         # FIXME handle multiple addresses
         # FIXME assume that address is correct for now
@@ -116,7 +127,7 @@ defmodule ExTURN.AllocationHandler do
         state
 
       {:error, response} ->
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
         state
     end
   end
@@ -148,7 +159,7 @@ defmodule ExTURN.AllocationHandler do
   defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    case Utils.authenticate(msg) do
+    case Utils.authenticate(msg, username: state.username) do
       {:ok, key} ->
         {:ok, channel_num} = Message.get_attribute(msg, ChannelNumber)
         {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
@@ -179,7 +190,7 @@ defmodule ExTURN.AllocationHandler do
         state
 
       {:error, response} ->
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
         state
     end
   end
