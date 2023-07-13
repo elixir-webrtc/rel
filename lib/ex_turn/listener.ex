@@ -114,6 +114,8 @@ defmodule ExTURN.Listener do
          %Message{type: %Type{class: :request, method: :binding}} = msg
        ) do
     {c_ip, c_port, _, _, _} = five_tuple
+    Logger.info("Received binding request from #{inspect(c_ip)}:#{c_port}")
+
     type = %Type{class: :success_response, method: :binding}
 
     response =

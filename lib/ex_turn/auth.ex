@@ -124,13 +124,13 @@ defmodule ExTURN.Auth do
     Message.new(t_id, error_type, attrs)
   end
 
-  @spec generate_credentials(String.t() | nil) :: {String.t(), String.t()}
+  @spec generate_credentials(String.t() | nil) :: {String.t(), String.t(), non_neg_integer()}
   def generate_credentials(username \\ nil) do
     timestamp = System.os_time(:second) + @credentials_lifetime
 
     username = if is_nil(username), do: "#{timestamp}", else: "#{timestamp}:#{username}"
     password = :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
 
-    {username, password}
+    {username, password, @credentials_lifetime}
   end
 end

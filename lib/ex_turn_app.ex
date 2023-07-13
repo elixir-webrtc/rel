@@ -9,6 +9,7 @@ defmodule ExTURN.App do
 
     listen_ip = Application.get_env(:ex_turn, :listen_ip, {0, 0, 0, 0})
     listen_port = Application.get_env(:ex_turn, :listen_port, 7878)
+    auth_provider_port = Application.get_env(:ex_turn, :auth_provider_port)
 
     listener_child_spec = %{
       id: ExTURN.Listener,
@@ -19,6 +20,7 @@ defmodule ExTURN.App do
       {TelemetryMetricsPrometheus, metrics: metrics()},
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
+      {Bandit, plug: ExTURN.AuthProvider, scheme: :http, ip: listen_ip, port: auth_provider_port},
       listener_child_spec
     ]
 
