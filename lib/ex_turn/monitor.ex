@@ -1,4 +1,5 @@
 defmodule ExTURN.Monitor do
+  @moduledoc false
   require Logger
 
   def start(pid, socket) do

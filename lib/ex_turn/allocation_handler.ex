@@ -1,14 +1,13 @@
 defmodule ExTURN.AllocationHandler do
+  @moduledoc false
   use GenServer
   require Logger
-
-  import ExTURN.Utils
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
 
-  alias ExTURN.Utils
+  alias ExTURN.Auth
   alias ExTURN.Attribute.{ChannelNumber, Data, XORPeerAddress}
 
   def start_link(turn_socket, alloc_socket, five_tuple, username) do
@@ -106,7 +105,7 @@ defmodule ExTURN.AllocationHandler do
   defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    case Utils.authenticate(msg, username: state.username) do
+    case Auth.authenticate(msg, username: state.username) do
       {:ok, key} ->
         # FIXME handle multiple addresses
         # FIXME assume that address is correct for now
@@ -159,7 +158,7 @@ defmodule ExTURN.AllocationHandler do
   defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    case Utils.authenticate(msg, username: state.username) do
+    case Auth.authenticate(msg, username: state.username) do
       {:ok, key} ->
         {:ok, channel_num} = Message.get_attribute(msg, ChannelNumber)
         {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
@@ -211,4 +210,7 @@ defmodule ExTURN.AllocationHandler do
     Logger.warn("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
     state
   end
+
+  defp family({_, _, _, _}), do: :ipv4
+  defp family({_, _, _, _, _, _, _, _}), do: :ipv6
 end

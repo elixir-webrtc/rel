@@ -1,4 +1,5 @@
 defmodule ExTURN.Listener do
+  @moduledoc false
   require Logger
 
   alias ExTURN.Attribute.{
@@ -11,13 +12,13 @@ defmodule ExTURN.Listener do
     XORRelayedAddress
   }
 
-  alias ExTURN.Utils
+  alias ExTURN.Auth
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{ErrorCode, Username, XORMappedAddress}
 
-  @default_alloc_ports MapSet.new(49152..65535)
+  @default_alloc_ports MapSet.new(49_152..65_535)
 
   def listen(ip, port) do
     Logger.info("Starting a new listener ip: #{inspect(ip)}, port: #{port}, proto: udp")
@@ -147,7 +148,7 @@ defmodule ExTURN.Listener do
   end
 
   defp handle_allocate_request(listen_socket, five_tuple, msg) do
-    with {:ok, key} <- Utils.authenticate(msg),
+    with {:ok, key} <- Auth.authenticate(msg),
          nil <- find_alloc(five_tuple),
          :ok <- check_requested_transport(msg),
          :ok <- check_dont_fragment(msg),
@@ -196,7 +197,7 @@ defmodule ExTURN.Listener do
           ]
         )
 
-      username = Message.get_attribute(msg, Username)
+      {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
 
       child_spec = %{
         id: five_tuple,

@@ -1,4 +1,5 @@
-defmodule ExTURN.Utils do
+defmodule ExTURN.Auth do
+  @moduledoc false
   require Logger
 
   alias ExSTUN.Message
@@ -10,6 +11,8 @@ defmodule ExTURN.Utils do
   @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)
   # 1 hour in nanoseconds, see https://datatracker.ietf.org/doc/html/rfc5766#section-4
   @nonce_lifetime 60 * 60 * 1_000_000_000
+  # 1 day in seconds, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
+  @credentials_lifetime 24 * 60 * 60
 
   @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, Message.t()}
   def authenticate(%Message{} = msg, opts \\ []) do
@@ -70,7 +73,7 @@ defmodule ExTURN.Utils do
 
   defp verify_username(:allocate, username, _opts) do
     # authentication method described in https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00
-    [expiry_time, _name] = String.split(username, ":", parts: 2)
+    [expiry_time | _rest] = String.split(username, ":", parts: 2)
 
     if String.to_integer(expiry_time) - System.os_time(:second) <= 0 do
       {:error, :invalid_timestamp}
@@ -121,12 +124,13 @@ defmodule ExTURN.Utils do
     Message.new(t_id, error_type, attrs)
   end
 
-  @spec generate_password(String.t()) :: String.t()
-  def generate_password(username) do
-    :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
-  end
+  @spec generate_credentials(String.t() | nil) :: {String.t(), String.t()}
+  def generate_credentials(username \\ nil) do
+    timestamp = System.os_time(:second) + @credentials_lifetime
 
-  @spec family(:inet.ipaddress()) :: :ipv4 | :ipv6
-  def family({_, _, _, _}), do: :ipv4
-  def family({_, _, _, _, _, _, _, _}), do: :ipv6
+    username = if is_nil(username), do: "#{timestamp}", else: "#{timestamp}:#{username}"
+    password = :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
+
+    {username, password}
+  end
 end

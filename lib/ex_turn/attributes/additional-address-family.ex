@@ -1,4 +1,5 @@
 defmodule ExTURN.Attribute.AdditionalAddressFamily do
+  @moduledoc false
   alias ExSTUN.Message.RawAttribute
 
   @behaviour ExSTUN.Message.Attribute

@@ -1,4 +1,5 @@
 defmodule ExTURN.App do
+  @moduledoc false
   use Application
 
   require Logger
