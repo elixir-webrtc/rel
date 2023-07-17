@@ -11,8 +11,8 @@ defmodule ExTURN.Auth do
   @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)
   # 1 hour in nanoseconds, see https://datatracker.ietf.org/doc/html/rfc5766#section-4
   @nonce_lifetime 60 * 60 * 1_000_000_000
-  # 1 day in seconds, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
-  @credentials_lifetime 24 * 60 * 60
+  # 1 day in seconds by default, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
+  @credentials_lifetime Application.compile_env(:ex_turn, :credentials_lifetime, 24 * 60 * 60)
 
   @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, Message.t()}
   def authenticate(%Message{} = msg, opts \\ []) do
@@ -73,12 +73,12 @@ defmodule ExTURN.Auth do
 
   defp verify_username(:allocate, username, _opts) do
     # authentication method described in https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00
-    [expiry_time | _rest] = String.split(username, ":", parts: 2)
-
-    if String.to_integer(expiry_time) - System.os_time(:second) <= 0 do
-      {:error, :invalid_timestamp}
-    else
+    with [expiry_time | _rest] <- String.split(username, ":", parts: 2),
+         {expiry_time, _rem} <- Integer.parse(expiry_time, 10),
+         false <- expiry_time - System.os_time(:second) <= 0 do
       :ok
+    else
+      _other -> {:error, :invalid_timestamp}
     end
   end
 
@@ -124,7 +124,8 @@ defmodule ExTURN.Auth do
     Message.new(t_id, error_type, attrs)
   end
 
-  @spec generate_credentials(String.t() | nil) :: {String.t(), String.t(), non_neg_integer()}
+  @spec generate_credentials(String.t() | nil) ::
+          {username :: String.t(), password :: String.t(), ttl :: non_neg_integer()}
   def generate_credentials(username \\ nil) do
     timestamp = System.os_time(:second) + @credentials_lifetime
 

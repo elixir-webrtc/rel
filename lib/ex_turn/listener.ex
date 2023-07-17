@@ -21,7 +21,7 @@ defmodule ExTURN.Listener do
   @default_alloc_ports MapSet.new(49_152..65_535)
 
   def listen(ip, port) do
-    Logger.info("Starting a new listener ip: #{inspect(ip)}, port: #{port}, proto: udp")
+    Logger.info("Starting a new listener on #{:inet.ntoa(ip)}:#{port}/udp")
 
     {:ok, socket} =
       :gen_udp.open(
@@ -114,7 +114,7 @@ defmodule ExTURN.Listener do
          %Message{type: %Type{class: :request, method: :binding}} = msg
        ) do
     {c_ip, c_port, _, _, _} = five_tuple
-    Logger.info("Received binding request from #{inspect(c_ip)}:#{c_port}")
+    Logger.info("Received binding request from #{:inet.ntoa(c_ip)}:#{c_port}")
 
     type = %Type{class: :success_response, method: :binding}
 

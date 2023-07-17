@@ -107,11 +107,11 @@ defmodule ExTURN.AllocationHandler do
 
     case Auth.authenticate(msg, username: state.username) do
       {:ok, key} ->
-        # FIXME handle multiple addresses
-        # FIXME assume that address is correct for now
+        # TODO: handle multiple addresses
+        # TODO: assume that address is correct for now
         {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
 
-        # FIXME setup timer
+        # TODO: setup timer
         state = %{state | permissions: MapSet.put(state.permissions, xor_addr.address)}
 
         type = %Type{class: :success_response, method: msg.type.method}
