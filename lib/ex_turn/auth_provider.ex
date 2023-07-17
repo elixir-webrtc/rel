@@ -38,7 +38,10 @@ defmodule ExTURN.AuthProvider do
       |> send_resp(200, response)
     else
       _other ->
-        Logger.info("Rejected credential request from #{:inet.ntoa(conn.remote_ip)}")
+        Logger.info(
+          "Invalid credential request from #{:inet.ntoa(conn.remote_ip)}, query params: #{fetch_query_params(conn)}"
+        )
+
         send_resp(conn, 400, "invalid request")
     end
   end
