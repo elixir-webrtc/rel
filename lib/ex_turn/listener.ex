@@ -1,4 +1,5 @@
 defmodule ExTURN.Listener do
+  @moduledoc false
   require Logger
 
   alias ExTURN.Attribute.{
@@ -11,16 +12,16 @@ defmodule ExTURN.Listener do
     XORRelayedAddress
   }
 
-  alias ExTURN.Utils
+  alias ExTURN.Auth
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
-  alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
+  alias ExSTUN.Message.Attribute.{ErrorCode, Username, XORMappedAddress}
 
-  @default_alloc_ports MapSet.new(49152..65535)
+  @default_alloc_ports MapSet.new(49_152..65_535)
 
   def listen(ip, port) do
-    Logger.info("Starting a new listener ip: #{inspect(ip)}, port: #{port}, proto: udp")
+    Logger.info("Starting a new listener on #{:inet.ntoa(ip)}:#{port}/udp")
 
     {:ok, socket} =
       :gen_udp.open(
@@ -107,29 +108,49 @@ defmodule ExTURN.Listener do
     end
   end
 
-  defp handle_message(socket, five_tuple, msg) do
-    case msg do
-      %Message{type: %Type{class: :request, method: :allocate}} ->
-        handle_allocate_request(socket, five_tuple, msg)
+  defp handle_message(
+         socket,
+         five_tuple,
+         %Message{type: %Type{class: :request, method: :binding}} = msg
+       ) do
+    {c_ip, c_port, _, _, _} = five_tuple
+    Logger.info("Received binding request from #{:inet.ntoa(c_ip)}:#{c_port}")
 
-      _other ->
-        case find_alloc(five_tuple) do
-          nil ->
-            Logger.info("""
-            No allocation for five tuple #{inspect(five_tuple)} and this is not an allocate request. \
-            Ignoring message: #{inspect(msg)}\
-            """)
+    type = %Type{class: :success_response, method: :binding}
 
-          alloc ->
-            send(alloc, {:msg, msg})
-        end
+    response =
+      Message.new(msg.transaction_id, type, [
+        %XORMappedAddress{port: c_port, address: c_ip}
+      ])
+      |> Message.encode()
 
-        :ok
+    :gen_udp.send(socket, c_ip, c_port, response)
+  end
+
+  defp handle_message(
+         socket,
+         five_tuple,
+         %Message{type: %Type{class: :request, method: :allocate}} = msg
+       ),
+       do: handle_allocate_request(socket, five_tuple, msg)
+
+  defp handle_message(_socket, five_tuple, msg) do
+    case find_alloc(five_tuple) do
+      nil ->
+        Logger.info("""
+        No allocation for five tuple #{inspect(five_tuple)} and this is not an allocate request. \
+        Ignoring message: #{inspect(msg)}\
+        """)
+
+      alloc ->
+        send(alloc, {:msg, msg})
     end
+
+    :ok
   end
 
   defp handle_allocate_request(listen_socket, five_tuple, msg) do
-    with {:ok, key} <- Utils.authenticate(msg),
+    with {:ok, key} <- Auth.authenticate(msg),
          nil <- find_alloc(five_tuple),
          :ok <- check_requested_transport(msg),
          :ok <- check_dont_fragment(msg),
@@ -178,9 +199,13 @@ defmodule ExTURN.Listener do
           ]
         )
 
+      {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
+
       child_spec = %{
         id: five_tuple,
-        start: {ExTURN.AllocationHandler, :start_link, [listen_socket, alloc_socket, five_tuple]}
+        start:
+          {ExTURN.AllocationHandler, :start_link,
+           [listen_socket, alloc_socket, five_tuple, username]}
       }
 
       {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)

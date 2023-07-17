@@ -1,4 +1,5 @@
 defmodule ExTURN.Attribute.Lifetime do
+  @moduledoc false
   alias ExSTUN.Message.RawAttribute
 
   @attr_type 0x000D

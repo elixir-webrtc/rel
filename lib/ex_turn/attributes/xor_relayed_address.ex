@@ -1,4 +1,5 @@
 defmodule ExTURN.Attribute.XORRelayedAddress do
+  @moduledoc false
   alias ExSTUN.Message.RawAttribute
   alias ExSTUN.Message.Attribute.XORMappedAddress
 

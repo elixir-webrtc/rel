@@ -34,6 +34,9 @@ defmodule ExTurn.MixProject do
     [
       {:toml, "~> 0.7"},
       {:ex_stun, github: "elixir-webrtc/ex_stun"},
+      {:bandit, "~> 0.7"},
+      {:cors_plug, "~> 3.0"},
+      {:jason, "~> 1.4"},
 
       # telemetry
       {:telemetry, "~> 1.0"},
