@@ -5,12 +5,13 @@ defmodule ExTURN.AllocationHandler do
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
-  alias ExSTUN.Message.Attribute.{ErrorCode, XORMappedAddress}
+  alias ExSTUN.Message.Attribute.ErrorCode
 
   alias ExTURN.Auth
-  alias ExTURN.Attribute.{ChannelNumber, Data, XORPeerAddress}
+  alias ExTURN.Attribute.{ChannelNumber, Data, Lifetime, XORPeerAddress}
+  alias ExTURN.Utils
 
-  def start_link(turn_socket, alloc_socket, five_tuple, username) do
+  def start_link(turn_socket, alloc_socket, five_tuple, username, lifetime) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
 
     GenServer.start_link(
@@ -19,10 +20,16 @@ defmodule ExTURN.AllocationHandler do
         turn_socket: turn_socket,
         alloc_socket: alloc_socket,
         five_tuple: five_tuple,
-        username: username
+        username: username,
+        time_to_expiry: lifetime
       ],
       name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_port}}
     )
+  end
+
+  @spec process_message(GenServer.server(), term()) :: :ok
+  def process_message(allocation, msg) do
+    GenServer.cast(allocation, {:msg, msg})
   end
 
   @impl true
@@ -30,11 +37,13 @@ defmodule ExTURN.AllocationHandler do
         turn_socket: turn_socket,
         alloc_socket: socket,
         five_tuple: five_tuple,
-        username: username
+        username: username,
+        time_to_expiry: time_to_expiry
       ) do
     Logger.info("Starting allocation handler #{inspect(five_tuple)}")
 
     Process.send_after(self(), :measure_bitrate, 1000)
+    Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
 
     {:ok,
      %{
@@ -43,6 +52,7 @@ defmodule ExTURN.AllocationHandler do
        socket: socket,
        five_tuple: five_tuple,
        username: username,
+       expiry_timestamp: System.os_time(:second) + time_to_expiry,
        permissions: MapSet.new(),
        channels: %{},
 
@@ -56,10 +66,7 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
-  def handle_info({:msg, msg}, state) do
-    state = handle_msg(msg, state)
-    {:noreply, state}
-  end
+  def handle_cast({:msg, msg}, state), do: handle_msg(msg, state)
 
   @impl true
   def handle_info({:udp, _socket, ip, port, packet}, state) do
@@ -97,9 +104,45 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
+  def handle_info(:check_expiration, state) do
+    if System.os_time(:second) >= state.expiry_timestamp do
+      {:stop, :normal, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info(msg, state) do
     Logger.warn("Got unexpected msg: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  defp handle_msg(%Message{type: %Type{class: :request, method: :refresh}} = msg, state) do
+    {c_ip, c_port, _, _, _} = state.five_tuple
+
+    {ret_val, response} =
+      with {:ok, key} <- Auth.authenticate(msg, username: state.username),
+           {:ok, time_to_expiry} <- Utils.get_lifetime(msg) do
+        Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
+        state = %{state | expiry_timestamp: System.os_time(:second) + time_to_expiry}
+
+        type = %Type{class: :success_response, method: :refresh}
+
+        response =
+          msg.transaction_id
+          |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
+          |> Message.with_integrity(key)
+
+        ret_val = if time_to_expiry == 0, do: {:stop, :normal, state}, else: {:noreply, state}
+
+        {ret_val, response}
+      else
+        {:error, response} -> {{:noreply, state}, response}
+      end
+
+    :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
+    ret_val
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
@@ -123,27 +166,12 @@ defmodule ExTURN.AllocationHandler do
           |> Message.encode()
 
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
-        state
+        {:noreply, state}
 
       {:error, response} ->
         :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
-        state
+        {:noreply, state}
     end
-  end
-
-  defp handle_msg(%Message{type: %Type{class: :request, method: :binding}} = msg, state) do
-    {c_ip, c_port, _, _, _} = state.five_tuple
-    type = %Type{class: :success_response, method: msg.type.method}
-
-    response =
-      Message.new(msg.transaction_id, type, [
-        %XORMappedAddress{port: c_port, address: c_ip}
-      ])
-      |> Message.encode()
-
-    :gen_udp.send(state.turn_socket, c_ip, c_port, response)
-
-    state
   end
 
   defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
@@ -152,7 +180,7 @@ defmodule ExTURN.AllocationHandler do
 
     :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data.value)
 
-    %{state | out_bytes: state.out_bytes + byte_size(data.value)}
+    {:noreply, %{state | out_bytes: state.out_bytes + byte_size(data.value)}}
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
@@ -186,11 +214,11 @@ defmodule ExTURN.AllocationHandler do
 
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
-        state
+        {:noreply, state}
 
       {:error, response} ->
         :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
-        state
+        {:noreply, state}
     end
   end
 
@@ -199,7 +227,7 @@ defmodule ExTURN.AllocationHandler do
     xor_addr = Map.fetch!(state.channels, channel_num)
     :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data)
 
-    %{state | out_bytes: state.out_bytes + byte_size(data)}
+    {:noreply, %{state | out_bytes: state.out_bytes + byte_size(data)}}
   end
 
   # defp handle_msg(<<channel_num::16, len::16, data::binary>>, state) do
@@ -208,7 +236,7 @@ defmodule ExTURN.AllocationHandler do
 
   defp handle_msg(msg, state) do
     Logger.warn("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
-    state
+    {:noreply, state}
   end
 
   defp family({_, _, _, _}), do: :ipv4

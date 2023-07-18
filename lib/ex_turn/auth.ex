@@ -3,11 +3,11 @@ defmodule ExTURN.Auth do
   require Logger
 
   alias ExSTUN.Message
-  alias ExSTUN.Message.Type
-  alias ExSTUN.Message.Attribute.{ErrorCode, Nonce, MessageIntegrity, Realm, Username}
+  alias ExSTUN.Message.Attribute.{Nonce, MessageIntegrity, Realm, Username}
+
+  alias ExTURN.Utils
 
   @auth_secret Application.compile_env!(:ex_turn, :auth_secret)
-  @domain_name Application.compile_env!(:ex_turn, :domain_name)
   @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)
   # 1 hour in nanoseconds, see https://datatracker.ietf.org/doc/html/rfc5766#section-4
   @nonce_lifetime 60 * 60 * 1_000_000_000
@@ -26,27 +26,27 @@ defmodule ExTURN.Auth do
     else
       {:error, :no_message_integrity} ->
         Logger.info("No message integrity attribute. Seems like a new allocation.")
-        {:error, build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
 
       {:error, :attrs_missing} ->
         Logger.info("No username, nonce or realm attribute. Rejecting.")
-        {:error, build_error(msg.transaction_id, msg.type.method, 400)}
+        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 400)}
 
       {:error, :invalid_timestamp} ->
         Logger.info("Username timestamp expired. Rejecting.")
-        {:error, build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
 
       {:error, :invalid_username} ->
         Logger.info("Username differs from the one used previously. Rejecting.")
-        {:error, build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
 
       {:error, :stale_nonce} ->
         Logger.info("Stale nonce. Rejecting.")
-        {:error, build_error(msg.transaction_id, msg.type.method, 438, with_attrs?: true)}
+        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 438, with_attrs?: true)}
 
       :error ->
         Logger.info("Bad message integrity")
-        {:error, build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
     end
   end
 
@@ -99,29 +99,6 @@ defmodule ExTURN.Auth do
       String.to_integer(timestamp) + @nonce_lifetime < System.monotonic_time(:nanosecond)
 
     if is_hash_valid? and not is_stale?, do: :ok, else: {:error, :stale_nonce}
-  end
-
-  defp build_nonce() do
-    # inspired by https://datatracker.ietf.org/doc/html/rfc7616#section-5.4
-    timestamp = System.monotonic_time(:nanosecond)
-    hash = :crypto.hash(:sha256, "#{timestamp}:#{@nonce_secret}")
-    "#{timestamp} #{hash}" |> :base64.encode()
-  end
-
-  defp build_error(t_id, method, code, opts \\ []) do
-    with_attrs? = Keyword.get(opts, :with_attrs?, false)
-    error_type = %Type{class: :error_response, method: method}
-
-    attrs = [%ErrorCode{code: code}]
-
-    attrs =
-      if with_attrs? do
-        attrs ++ [%Nonce{value: build_nonce()}, %Realm{value: @domain_name}]
-      else
-        attrs
-      end
-
-    Message.new(t_id, error_type, attrs)
   end
 
   @spec generate_credentials(String.t() | nil) ::
