@@ -134,11 +134,7 @@ defmodule ExTURN.AllocationHandler do
     {ret_val, response} =
       with {:ok, key} <- Auth.authenticate(msg, username: state.username),
            {:ok, time_to_expiry} <- Utils.get_lifetime(msg) do
-        Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
-        state = %{state | expiry_timestamp: System.os_time(:second) + time_to_expiry}
-
         type = %Type{class: :success_response, method: :refresh}
-
         response =
           msg.transaction_id
           |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
@@ -149,6 +145,8 @@ defmodule ExTURN.AllocationHandler do
             Logger.info("Allocation deleted with LIFETIME=0 refresh request")
             {:stop, {:shutdown, :allocation_expired}, state}
           else
+            state = %{state | expiry_timestamp: System.os_time(:second) + time_to_expiry}
+            Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
             Logger.info(
               "Succesfully refreshed allocation, new 'time-to-expiry': #{time_to_expiry}"
             )
