@@ -16,48 +16,52 @@ defmodule ExTURN.Auth do
 
   @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, Message.t()}
   def authenticate(%Message{} = msg, opts \\ []) do
-    with :ok <- verify_message_integrity(msg),
-         {:ok, username, nonce} <- verify_attrs_presence(msg),
-         :ok <- verify_username(msg.type.method, username, opts),
-         :ok <- verify_nonce(nonce),
-         password <- :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode(),
-         {:ok, key} <- Message.authenticate_lt(msg, password) do
-      {:ok, key}
-    else
-      {:error, :no_message_integrity} ->
-        Logger.info("No message integrity attribute. Seems like a new allocation.")
-        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+    result =
+      with :ok <- verify_message_integrity(msg),
+           {:ok, username, nonce} <- verify_attrs_presence(msg),
+           :ok <- verify_username(msg.type.method, username, opts),
+           :ok <- verify_nonce(nonce),
+           password <- :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode(),
+           {:ok, key} <- Message.authenticate_lt(msg, password) do
+        {:ok, key}
+      else
+        {:error, :no_message_integrity} ->
+          {"No message integrity attribute, rejected", 401, true}
 
-      {:error, :attrs_missing} ->
-        Logger.info("No username, nonce or realm attribute. Rejecting.")
-        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 400)}
+        {:error, :attrs_missing} ->
+          {"No username, nonce or realm attribute, rejected.", 400, false}
 
-      {:error, :invalid_timestamp} ->
-        Logger.info("Username timestamp expired. Rejecting.")
-        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        {:error, :invalid_timestamp} ->
+          {"Username timestamp expired, rejected", 401, true}
 
-      {:error, :invalid_username} ->
-        Logger.info("Username differs from the one used previously. Rejecting.")
-        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        {:error, :invalid_username} ->
+          {"Username differs from the one used previously, rejected", 441, true}
 
-      {:error, :stale_nonce} ->
-        Logger.info("Stale nonce. Rejecting.")
-        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 438, with_attrs?: true)}
+        {:error, :stale_nonce} ->
+          {"Stale nonce, rejected", 438, true}
 
-      :error ->
-        Logger.info("Bad message integrity")
-        {:error, Utils.build_error(msg.transaction_id, msg.type.method, 401, with_attrs?: true)}
+        :error ->
+          {"Bad message integrity, rejected", 401, true}
+      end
+
+    case result do
+      {:ok, key} ->
+        {:ok, key}
+
+      {warning, error_code, with_attrs?} ->
+        Logger.warn(warning)
+
+        {:error,
+         Utils.build_error(msg.transaction_id, msg.type.method, error_code,
+           with_attrs?: with_attrs?
+         )}
     end
   end
 
   defp verify_message_integrity(msg) do
     case Message.get_attribute(msg, MessageIntegrity) do
-      {:ok, %MessageIntegrity{} = msg_int} ->
-        Logger.info("Got message integrity, #{inspect(msg_int)}")
-        :ok
-
-      nil ->
-        {:error, :no_message_integrity}
+      {:ok, %MessageIntegrity{}} -> :ok
+      nil -> {:error, :no_message_integrity}
     end
   end
 

@@ -1,5 +1,7 @@
 defmodule ExTURN.Utils do
   @moduledoc false
+  require Logger
+
   alias ExSTUN.Message
   alias ExSTUN.Message.Method
   alias ExSTUN.Message.Type
@@ -14,7 +16,7 @@ defmodule ExTURN.Utils do
   @default_lifetime 100
   @max_lifetime 3600
 
-  @spec get_lifetime(Message.t()) :: {:ok, integer()} | {:error, Message.t()}
+  @spec get_lifetime(Message.t()) :: {:ok, integer()} | {:error, :invalid_lifetime}
   def get_lifetime(msg) do
     case Message.get_attribute(msg, Lifetime) do
       {:ok, %Lifetime{lifetime: lifetime}} ->
@@ -27,7 +29,7 @@ defmodule ExTURN.Utils do
         {:ok, @default_lifetime}
 
       {:error, _reason} ->
-        {:error, build_error(msg.transaction_id, msg.type.method, 400)}
+        {:error, :invalid_lifetime}
     end
   end
 

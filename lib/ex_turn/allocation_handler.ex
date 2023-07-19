@@ -40,14 +40,17 @@ defmodule ExTURN.AllocationHandler do
         username: username,
         time_to_expiry: time_to_expiry
       ) do
-    Logger.info("Starting allocation handler #{inspect(five_tuple)}")
+    {c_ip, c_port, s_ip, s_port, _transport} = five_tuple
+    alloc_id = "(#{:inet.ntoa(c_ip)}:#{c_port}, #{:inet.ntoa(s_ip)}:#{s_port}, UDP)"
+    Logger.metadata(alloc: alloc_id)
+    Logger.info("Starting new allocation handler")
 
     Process.send_after(self(), :measure_bitrate, 1000)
     Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
 
     {:ok,
      %{
-       alloc_id: "#{inspect(five_tuple)}",
+       alloc_id: alloc_id,
        turn_socket: turn_socket,
        socket: socket,
        five_tuple: five_tuple,
@@ -106,7 +109,8 @@ defmodule ExTURN.AllocationHandler do
   @impl true
   def handle_info(:check_expiration, state) do
     if System.os_time(:second) >= state.expiry_timestamp do
-      {:stop, :normal, state}
+      Logger.info("Allocation expired")
+      {:stop, {:shutdown, :allocation_expired}, state}
     else
       {:noreply, state}
     end
@@ -114,11 +118,17 @@ defmodule ExTURN.AllocationHandler do
 
   @impl true
   def handle_info(msg, state) do
-    Logger.warn("Got unexpected msg: #{inspect(msg)}")
+    Logger.warning("Got unexpected OTP message: #{inspect(msg)}")
     {:noreply, state}
   end
 
+  @impl true
+  def terminate(reason, _state) do
+    Logger.info("Allocation handler stopped with reason: #{inspect(reason)}")
+  end
+
   defp handle_msg(%Message{type: %Type{class: :request, method: :refresh}} = msg, state) do
+    Logger.info("Received refresh request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
     {ret_val, response} =
@@ -134,7 +144,17 @@ defmodule ExTURN.AllocationHandler do
           |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
           |> Message.with_integrity(key)
 
-        ret_val = if time_to_expiry == 0, do: {:stop, :normal, state}, else: {:noreply, state}
+        ret_val =
+          if time_to_expiry == 0 do
+            Logger.info("Allocation deleted with LIFETIME=0 refresh request")
+            {:stop, {:shutdown, :allocation_expired}, state}
+          else
+            Logger.info(
+              "Succesfully refreshed allocation, new 'time-to-expiry': #{time_to_expiry}"
+            )
+
+            {:noreply, state}
+          end
 
         {ret_val, response}
       else
@@ -235,7 +255,7 @@ defmodule ExTURN.AllocationHandler do
   # end
 
   defp handle_msg(msg, state) do
-    Logger.warn("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
+    Logger.warning("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
     {:noreply, state}
   end
 
