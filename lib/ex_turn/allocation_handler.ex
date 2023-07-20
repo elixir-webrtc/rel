@@ -69,7 +69,12 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
-  def handle_cast({:msg, msg}, state), do: handle_msg(msg, state)
+  def handle_cast({:msg, msg}, state) do
+    case handle_msg(msg, state) do
+      {:ok, state} -> {:noreply, state}
+      {:allocation_expired, state} -> {:stop, {:shutdown, :allocation_expired}, state}
+    end
+  end
 
   @impl true
   def handle_info({:udp, _socket, ip, port, packet}, state) do
@@ -109,7 +114,7 @@ defmodule ExTURN.AllocationHandler do
   @impl true
   def handle_info(:check_expiration, state) do
     if System.os_time(:second) >= state.expiry_timestamp do
-      Logger.info("Allocation expired")
+      Logger.info("Allocation expired, shutting down allocation handler")
       {:stop, {:shutdown, :allocation_expired}, state}
     else
       {:noreply, state}
@@ -131,36 +136,34 @@ defmodule ExTURN.AllocationHandler do
     Logger.info("Received refresh request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    {ret_val, response} =
-      with {:ok, key} <- Auth.authenticate(msg, username: state.username),
-           {:ok, time_to_expiry} <- Utils.get_lifetime(msg) do
-        type = %Type{class: :success_response, method: :refresh}
-        response =
-          msg.transaction_id
-          |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
-          |> Message.with_integrity(key)
+    with {:ok, key} <- Auth.authenticate(msg, username: state.username),
+         {:ok, time_to_expiry} <- Utils.get_lifetime(msg) do
+      type = %Type{class: :success_response, method: :refresh}
 
-        ret_val =
-          if time_to_expiry == 0 do
-            Logger.info("Allocation deleted with LIFETIME=0 refresh request")
-            {:stop, {:shutdown, :allocation_expired}, state}
-          else
-            state = %{state | expiry_timestamp: System.os_time(:second) + time_to_expiry}
-            Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
-            Logger.info(
-              "Succesfully refreshed allocation, new 'time-to-expiry': #{time_to_expiry}"
-            )
+      msg.transaction_id
+      |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
+      |> Message.with_integrity(key)
+      |> Message.encode()
+      |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
 
-            {:noreply, state}
-          end
-
-        {ret_val, response}
+      if time_to_expiry == 0 do
+        Logger.info("Allocation deleted with LIFETIME=0 refresh request")
+        {:allocation_expired, state}
       else
-        {:error, response} -> {{:noreply, state}, response}
-      end
+        state = %{state | expiry_timestamp: System.os_time(:second) + time_to_expiry}
+        Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
 
-    :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
-    ret_val
+        Logger.info("Succesfully refreshed allocation, new 'time-to-expiry': #{time_to_expiry}")
+
+        {:ok, state}
+      end
+    else
+      {:error, reason} ->
+        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warn(log_msg)
+        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        {:ok, state}
+    end
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
@@ -177,18 +180,19 @@ defmodule ExTURN.AllocationHandler do
 
         type = %Type{class: :success_response, method: msg.type.method}
 
-        response =
-          msg.transaction_id
-          |> Message.new(type, [])
-          |> Message.with_integrity(key)
-          |> Message.encode()
+        msg.transaction_id
+        |> Message.new(type, [])
+        |> Message.with_integrity(key)
+        |> Message.encode()
+        |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
 
+        {:ok, state}
+
+      {:error, reason} ->
+        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warn(log_msg)
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
-        {:noreply, state}
-
-      {:error, response} ->
-        :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
-        {:noreply, state}
+        {:ok, state}
     end
   end
 
@@ -198,7 +202,7 @@ defmodule ExTURN.AllocationHandler do
 
     :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data.value)
 
-    {:noreply, %{state | out_bytes: state.out_bytes + byte_size(data.value)}}
+    {:ok, %{state | out_bytes: state.out_bytes + byte_size(data.value)}}
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
@@ -232,11 +236,13 @@ defmodule ExTURN.AllocationHandler do
 
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
-        {:noreply, state}
+        {:ok, state}
 
-      {:error, response} ->
-        :gen_udp.send(state.turn_socket, c_ip, c_port, Message.encode(response))
-        {:noreply, state}
+      {:error, reason} ->
+        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warn(log_msg)
+        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        {:ok, state}
     end
   end
 
@@ -245,7 +251,7 @@ defmodule ExTURN.AllocationHandler do
     xor_addr = Map.fetch!(state.channels, channel_num)
     :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data)
 
-    {:noreply, %{state | out_bytes: state.out_bytes + byte_size(data)}}
+    {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
   end
 
   # defp handle_msg(<<channel_num::16, len::16, data::binary>>, state) do
@@ -254,7 +260,7 @@ defmodule ExTURN.AllocationHandler do
 
   defp handle_msg(msg, state) do
     Logger.warning("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
-    {:noreply, state}
+    {:ok, state}
   end
 
   defp family({_, _, _, _}), do: :ipv4

@@ -33,9 +33,10 @@ defmodule ExTURN.Utils do
     end
   end
 
-  @spec build_error(integer(), Method.t(), 300..699, with_attrs?: boolean()) :: Message.t()
-  def build_error(t_id, method, code, opts \\ []) do
-    with_attrs? = Keyword.get(opts, :with_attrs?, false)
+  @spec build_error(atom(), integer(), Method.t()) ::
+          {response :: binary(), log_msg :: String.t()}
+  def build_error(reason, t_id, method) do
+    {log_msg, code, with_attrs?} = translate_error(reason)
     error_type = %Type{class: :error_response, method: method}
 
     attrs = [%ErrorCode{code: code}]
@@ -47,7 +48,12 @@ defmodule ExTURN.Utils do
         attrs
       end
 
-    Message.new(t_id, error_type, attrs)
+    response =
+      t_id
+      |> Message.new(error_type, attrs)
+      |> Message.encode()
+
+    {response, log_msg <> ", rejected"}
   end
 
   defp build_nonce() do
@@ -55,5 +61,70 @@ defmodule ExTURN.Utils do
     timestamp = System.monotonic_time(:nanosecond)
     hash = :crypto.hash(:sha256, "#{timestamp}:#{@nonce_secret}")
     "#{timestamp} #{hash}" |> :base64.encode()
+  end
+
+  defp translate_error(reason) do
+    case reason do
+      :allocation_not_found ->
+        {"Allocation mismatch: allocation does not exist", 437, false}
+
+      :allocation_exists ->
+        {"Allocation mismatch: allocation already exists", 437, false}
+
+      :requested_transport_tcp ->
+        {"Unsupported REQUESTED-TRANSPORT: TCP", 442, false}
+
+      :invalid_requested_transport ->
+        {"No or malformed REQUESTED-TRANSPORT", 400, false}
+
+      :invalid_even_port ->
+        {"Failed to decode EVEN-PORT", 400, false}
+
+      :invalid_requested_address_family ->
+        {"Failed to decode REQUESTED-ADDRESS-FAMILY", 400, false}
+
+      :reservation_token_with_others ->
+        {"RESERVATION-TOKEN and (EVEN-PORT|REQUESTED-FAMILY) in the message", 400, false}
+
+      :reservation_token_unsupported ->
+        {"RESERVATION-TOKEN unsupported", 400, false}
+
+      :invalid_reservation_token ->
+        {"Failed to decode RESERVATION-TOKEN", 400, false}
+
+      :requested_address_family_unsupported ->
+        {"REQUESTED-ADDRESS-FAMILY with IPv6 unsupported", 440, false}
+
+      :even_port_unsupported ->
+        {"EVEN-PORT unsupported", 400, false}
+
+      :out_of_ports ->
+        {"No available ports left", 508, false}
+
+      :invalid_lifetime ->
+        {"Failed to decode LIFETIME", 400, false}
+
+      :invalid_message_integrity ->
+        {"Failed do decode MESSAGE-INTEGRITY", 400, false}
+
+      :no_message_integrity ->
+        {"No message integrity attribute", 401, true}
+
+      :auth_attrs_missing ->
+        {"No username, nonce or realm attribute", 400, false}
+
+      :invalid_username_timestamp ->
+        {"Username timestamp expired", 401, true}
+
+      :invalid_username ->
+        {"Username differs from the one used previously", 441, true}
+
+      :stale_nonce ->
+        {"Stale nonce", 438, true}
+
+      other ->
+        Logger.error("Unsupported error type: #{other}")
+        {"", 500}
+    end
   end
 end

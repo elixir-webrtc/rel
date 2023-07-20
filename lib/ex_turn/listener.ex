@@ -87,20 +87,21 @@ defmodule ExTURN.Listener do
 
     Logger.metadata(client: "#{:inet.ntoa(client_ip)}:#{client_port}")
 
-    if first_byte in 0..3 do
-      # FIXME: according to RFCs, unknown comprehension-required
-      # attributes should result in error response 420, but oh well
-      case Message.decode(packet) do
-        {:ok, msg} ->
-          handle_message(socket, five_tuple, msg)
+    # FIXME: according to RFCs, unknown comprehension-required
+    # attributes should result in error response 420, but oh well
 
-        {:error, reason} ->
-          Logger.warning(
-            "Failed to decode STUN packet, reason: #{inspect(reason)}, packet: #{inspect(packet)}"
-          )
-      end
+    with true <- first_byte in 0..3,
+         {:ok, msg} <- Message.decode(packet) do
+      handle_message(socket, five_tuple, msg)
     else
-      handle_message(socket, five_tuple, packet)
+      false ->
+        handle_message(socket, five_tuple, packet)
+
+      {:error, reason} ->
+        # TODO: response?
+        Logger.warning(
+          "Failed to decode STUN packet, reason: #{inspect(reason)}, packet: #{inspect(packet)}"
+        )
     end
 
     Logger.metadata(client: nil)
@@ -114,22 +115,23 @@ defmodule ExTURN.Listener do
     Logger.info("Received binding request")
     {c_ip, c_port, _, _, _} = five_tuple
 
-    response =
-      case Auth.authenticate(msg) do
-        {:ok, key} ->
-          type = %Type{class: :success_response, method: :binding}
+    case Auth.authenticate(msg) do
+      {:ok, key} ->
+        type = %Type{class: :success_response, method: :binding}
 
-          msg.transaction_id
-          |> Message.new(type, [
-            %XORMappedAddress{port: c_port, address: c_ip}
-          ])
-          |> Message.with_integrity(key)
+        msg.transaction_id
+        |> Message.new(type, [
+          %XORMappedAddress{port: c_port, address: c_ip}
+        ])
+        |> Message.with_integrity(key)
+        |> Message.encode()
+        |> then(&:gen_udp.send(socket, c_ip, c_port, &1))
 
-        {:error, response} ->
-          response
-      end
-
-    :gen_udp.send(socket, c_ip, c_port, Message.encode(response))
+      {:error, reason} ->
+        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warning(log_msg)
+        :gen_udp.send(socket, c_ip, c_port, response)
+    end
   end
 
   defp handle_message(
@@ -140,111 +142,66 @@ defmodule ExTURN.Listener do
     Logger.info("Received new allocation request")
     {c_ip, c_port, _, _, _} = five_tuple
 
-    result =
-      with {:ok, key} <- Auth.authenticate(msg),
-           :ok <- is_not_retransmited?(msg, key, []),
-           :ok <- refute_allocation(five_tuple),
-           :ok <- check_requested_transport(msg),
-           :ok <- check_dont_fragment(msg),
-           {:ok, even_port} <- get_even_port(msg),
-           {:ok, req_family} <- get_requested_address_family(msg),
-           :ok <- check_reservation_token(msg, even_port, req_family),
-           :ok <- check_family(req_family),
-           :ok <- check_even_port(even_port),
-           {:ok, alloc_port} <- get_available_port(),
-           {:ok, lifetime} <- Utils.get_lifetime(msg) do
-        alloc_ip = Application.fetch_env!(:ex_turn, :public_ip)
+    with {:ok, key} <- Auth.authenticate(msg),
+         :ok <- is_not_retransmited?(msg, key, []),
+         :ok <- refute_allocation(five_tuple),
+         :ok <- check_requested_transport(msg),
+         :ok <- check_dont_fragment(msg),
+         {:ok, even_port} <- get_even_port(msg),
+         {:ok, req_family} <- get_requested_address_family(msg),
+         :ok <- check_reservation_token(msg, even_port, req_family),
+         :ok <- check_family(req_family),
+         :ok <- check_even_port(even_port),
+         {:ok, alloc_port} <- get_available_port(),
+         {:ok, lifetime} <- Utils.get_lifetime(msg) do
+      alloc_ip = Application.fetch_env!(:ex_turn, :public_ip)
 
-        type = %Type{class: :success_response, method: msg.type.method}
+      type = %Type{class: :success_response, method: msg.type.method}
 
-        response =
-          msg.transaction_id
-          |> Message.new(type, [
-            %XORRelayedAddress{port: alloc_port, address: alloc_ip},
-            %Lifetime{lifetime: lifetime},
-            %XORMappedAddress{port: c_port, address: c_ip}
-          ])
-          |> Message.with_integrity(key)
+      response =
+        msg.transaction_id
+        |> Message.new(type, [
+          %XORRelayedAddress{port: alloc_port, address: alloc_ip},
+          %Lifetime{lifetime: lifetime},
+          %XORMappedAddress{port: c_port, address: c_ip}
+        ])
+        |> Message.with_integrity(key)
+        |> Message.encode()
 
-        {:ok, alloc_socket} =
-          :gen_udp.open(
-            alloc_port,
-            [
-              {:inet_backend, :socket},
-              {:ifaddr, alloc_ip},
-              {:active, true},
-              {:recbuf, 1024 * 1024},
-              :binary
-            ]
-          )
+      {:ok, alloc_socket} =
+        :gen_udp.open(
+          alloc_port,
+          [
+            {:inet_backend, :socket},
+            {:ifaddr, alloc_ip},
+            {:active, true},
+            {:recbuf, 1024 * 1024},
+            :binary
+          ]
+        )
 
-        Logger.info("Succesfully created allocation")
+      Logger.info("Succesfully created allocation")
 
-        {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
+      {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
 
-        child_spec = %{
-          id: five_tuple,
-          restart: :transient,
-          start:
-            {ExTURN.AllocationHandler, :start_link,
-             [socket, alloc_socket, five_tuple, username, lifetime]}
-        }
+      child_spec = %{
+        id: five_tuple,
+        restart: :transient,
+        start:
+          {ExTURN.AllocationHandler, :start_link,
+           [socket, alloc_socket, five_tuple, username, lifetime]}
+      }
 
-        {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
-        :gen_udp.controlling_process(alloc_socket, alloc_pid)
-        {:ok, response}
-      else
-        {:error, %Message{} = response} ->
-          {:ok, response}
+      {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
+      :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
-        {:error, :allocation_exists} ->
-          {"Allocation mismatch: allocation already exists, rejected", 437}
-
-        {:error, :requested_transport_tcp} ->
-          {"Unsupported REQUESTED-TRANSPORT: TCP, rejected", 442}
-
-        {:error, :invalid_requested_transport} ->
-          {"No or malformed REQUESTED-TRANSPORT, rejected", 400}
-
-        {:error, :invalid_even_port} ->
-          {"Failed to decode EVEN-PORT, rejected", 400}
-
-        {:error, :invalid_requested_address_family} ->
-          {"Failed to decode REQUESTED-ADDRESS-FAMILY, rejected", 400}
-
-        {:error, :reservation_token_with_others} ->
-          {"RESERVATION-TOKEN and (EVEN-PORT|REQUESTED-FAMILY) in the message, rejected", 400}
-
-        {:error, :reservation_token_unsupported} ->
-          {"RESERVATION-TOKEN unsupported, rejected", 400}
-
-        {:error, :invalid_reservation_token} ->
-          {"Failed to decode RESERVATION-TOKEN, rejected", 400}
-
-        {:error, :requested_address_family_unsupported} ->
-          {"REQUESTED-ADDRESS-FAMILY with IPv6 unsupported, rejected", 440}
-
-        {:error, :even_port_unsupported} ->
-          {"EVEN-PORT unsupported, rejected", 400}
-
-        {:error, :out_of_ports} ->
-          {"No available ports left, rejected", 508}
-
-        {:error, :invalid_lifetime} ->
-          {"Failed to decode LIFETIME, rejected", 400}
-      end
-
-    response =
-      case result do
-        {:ok, response} ->
-          response
-
-        {warning, error_code} ->
-          Logger.warning(warning)
-          Utils.build_error(msg.transaction_id, msg.type.method, error_code)
-      end
-
-    :gen_udp.send(socket, c_ip, c_port, Message.encode(response))
+      :gen_udp.send(socket, c_ip, c_port, response)
+    else
+      {:error, reason} ->
+        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warning(log_msg)
+        :gen_udp.send(socket, c_ip, c_port, response)
+    end
   end
 
   defp handle_message(socket, five_tuple, msg) do
@@ -252,19 +209,18 @@ defmodule ExTURN.Listener do
       {:ok, alloc} ->
         AllocationHandler.process_message(alloc, msg)
 
-      {:error, :not_found} ->
+      {:error, :allocation_not_found = reason} ->
         {c_ip, c_port, _, _, _} = five_tuple
 
         case msg do
           %Message{} ->
+            {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+
             Logger.warn(
               "No allocation and this is not an allocate/binding request, message: #{inspect(msg)}"
             )
 
-            msg.transaction_id
-            |> Utils.build_error(msg.type.method, 437)
-            |> Message.encode()
-            |> then(&:gen_udp.send(socket, c_ip, c_port, &1))
+            :gen_udp.send(socket, c_ip, c_port, response)
 
           _other ->
             Logger.warn("No allocation and is not a STUN message, silently discarded")
@@ -281,13 +237,13 @@ defmodule ExTURN.Listener do
   defp fetch_allocation(five_tuple) do
     case Registry.lookup(Registry.Allocations, five_tuple) do
       [{allocation, _value}] -> {:ok, allocation}
-      [] -> {:error, :not_found}
+      [] -> {:error, :allocation_not_found}
     end
   end
 
   defp refute_allocation(five_tuple) do
     case fetch_allocation(five_tuple) do
-      {:error, :not_found} -> :ok
+      {:error, :allocation_not_found} -> :ok
       {:ok, _alloc} -> {:error, :allocation_exists}
     end
   end

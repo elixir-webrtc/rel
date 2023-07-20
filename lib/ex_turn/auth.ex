@@ -5,8 +5,6 @@ defmodule ExTURN.Auth do
   alias ExSTUN.Message
   alias ExSTUN.Message.Attribute.{Nonce, MessageIntegrity, Realm, Username}
 
-  alias ExTURN.Utils
-
   @auth_secret Application.compile_env!(:ex_turn, :auth_secret)
   @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)
   # 1 hour in nanoseconds, see https://datatracker.ietf.org/doc/html/rfc5766#section-4
@@ -14,47 +12,18 @@ defmodule ExTURN.Auth do
   # 1 day in seconds by default, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
   @credentials_lifetime Application.compile_env(:ex_turn, :credentials_lifetime, 24 * 60 * 60)
 
-  @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, Message.t()}
+  @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, atom()}
   def authenticate(%Message{} = msg, opts \\ []) do
-    result =
-      with :ok <- verify_message_integrity(msg),
-           {:ok, username, nonce} <- verify_attrs_presence(msg),
-           :ok <- verify_username(msg.type.method, username, opts),
-           :ok <- verify_nonce(nonce),
-           password <- :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode(),
-           {:ok, key} <- Message.authenticate_lt(msg, password) do
-        {:ok, key}
-      else
-        {:error, :no_message_integrity} ->
-          {"No message integrity attribute, rejected", 401, true}
-
-        {:error, :attrs_missing} ->
-          {"No username, nonce or realm attribute, rejected.", 400, false}
-
-        {:error, :invalid_timestamp} ->
-          {"Username timestamp expired, rejected", 401, true}
-
-        {:error, :invalid_username} ->
-          {"Username differs from the one used previously, rejected", 441, true}
-
-        {:error, :stale_nonce} ->
-          {"Stale nonce, rejected", 438, true}
-
-        :error ->
-          {"Bad message integrity, rejected", 401, true}
-      end
-
-    case result do
-      {:ok, key} ->
-        {:ok, key}
-
-      {warning, error_code, with_attrs?} ->
-        Logger.warn(warning)
-
-        {:error,
-         Utils.build_error(msg.transaction_id, msg.type.method, error_code,
-           with_attrs?: with_attrs?
-         )}
+    with :ok <- verify_message_integrity(msg),
+         {:ok, username, nonce} <- verify_attrs_presence(msg),
+         :ok <- verify_username(msg.type.method, username, opts),
+         :ok <- verify_nonce(nonce),
+         password <- :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode(),
+         {:ok, key} <- Message.authenticate_lt(msg, password) do
+      {:ok, key}
+    else
+      :error -> {:error, :invalid_message_integrity}
+      {:error, _reason} = err -> err
     end
   end
 
@@ -71,7 +40,7 @@ defmodule ExTURN.Auth do
          {:ok, %Nonce{value: nonce}} <- Message.get_attribute(msg, Nonce) do
       {:ok, username, nonce}
     else
-      nil -> {:error, :attrs_missing}
+      nil -> {:error, :auth_attrs_missing}
     end
   end
 
@@ -82,7 +51,7 @@ defmodule ExTURN.Auth do
          false <- expiry_time - System.os_time(:second) <= 0 do
       :ok
     else
-      _other -> {:error, :invalid_timestamp}
+      _other -> {:error, :invalid_username_timestamp}
     end
   end
 
