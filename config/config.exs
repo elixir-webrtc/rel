@@ -12,6 +12,6 @@ config :ex_turn,
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:file, :line]
+  metadata: [:listener, :client, :alloc]
 
 import_config "#{config_env()}.exs"

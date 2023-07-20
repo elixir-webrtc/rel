@@ -20,4 +20,15 @@ defmodule ExTURN.Attribute.Lifetime do
   def to_raw(%__MODULE__{} = attr, _msg) do
     %RawAttribute{type: @attr_type, value: <<attr.lifetime::32>>}
   end
+
+  @impl true
+  def from_raw(%RawAttribute{} = raw_attr, _msg) do
+    decode(raw_attr.value)
+  end
+
+  defp decode(<<lifetime::32>>) do
+    {:ok, %__MODULE__{lifetime: lifetime}}
+  end
+
+  defp decode(_data), do: {:error, :invalid_lifetime}
 end

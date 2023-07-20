@@ -5,7 +5,7 @@ defmodule ExTURN.App do
   require Logger
 
   def start(_, _) do
-    Logger.info("Starting ExTURN")
+    Logger.info("Starting ExTURN...")
 
     listen_ip = Application.get_env(:ex_turn, :listen_ip, {0, 0, 0, 0})
     listen_port = Application.get_env(:ex_turn, :listen_port, 7878)
