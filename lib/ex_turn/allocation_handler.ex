@@ -5,11 +5,13 @@ defmodule ExTURN.AllocationHandler do
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
-  alias ExSTUN.Message.Attribute.ErrorCode
 
   alias ExTURN.Auth
   alias ExTURN.Attribute.{ChannelNumber, Data, Lifetime, XORPeerAddress}
   alias ExTURN.Utils
+
+  @permission_lifetime 60 * 5
+  @channel_lifetime 60 * 10
 
   def start_link(turn_socket, alloc_socket, five_tuple, username, lifetime) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
@@ -56,8 +58,10 @@ defmodule ExTURN.AllocationHandler do
        five_tuple: five_tuple,
        username: username,
        expiry_timestamp: System.os_time(:second) + time_to_expiry,
-       permissions: MapSet.new(),
-       channels: %{},
+       permissions: %{},
+       chann_to_time: %{},
+       chann_to_addr: %{},
+       addr_to_chann: %{},
 
        # stats
        # bytes sent by the client
@@ -77,20 +81,35 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
-  def handle_info({:udp, _socket, ip, port, packet}, state) do
-    xor_addr = %XORPeerAddress{port: port, address: ip}
-    data = %Data{value: packet}
+  def handle_info({:udp, _socket, ip_addr, port, packet}, state) do
+    if Map.has_key?(state.permissions, ip_addr) do
+      {c_ip, c_port, _, _, _} = state.five_tuple
 
-    type = %Type{class: :indication, method: :data}
-    response = Message.new(type, [xor_addr, data]) |> Message.encode()
+      case Map.fetch(state.addr_to_chann, {ip_addr, port}) do
+        {:ok, number} ->
+          len = byte_size(packet)
+          channel_data = <<number::16, len::16, packet::binary>>
+          :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
 
-    {c_ip, c_port, _, _, _} = state.five_tuple
+        :error ->
+          xor_addr = %XORPeerAddress{port: port, address: ip_addr}
+          data = %Data{value: packet}
 
-    :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+          %Type{class: :indication, method: :data}
+          |> Message.new([xor_addr, data])
+          |> Message.encode()
+          |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
+      end
 
-    state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
+      state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
+      {:noreply, state}
+    else
+      Logger.warning(
+        "Received UDP datagram from #{:inet.ntoa(ip_addr)}, but no permission was created"
+      )
 
-    {:noreply, state}
+      {:noreply, state}
+    end
   end
 
   @impl true
@@ -122,6 +141,31 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
+  def handle_info({:check_permission, addr}, state) do
+    if System.os_time(:second) >= state.permissions[addr] do
+      Logger.info("Permission for #{:inet.ntoa(addr)} expired")
+      {:noreply, pop_in(state.permissions[addr])}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:check_channel, number}, state) do
+    if System.os_time(:second) >= state.chann_to_time[number] do
+      {ip_addr, port} = addr = state.chann_to_addr[number]
+      Logger.info("Channel binding #{number} <-> #{:inet.ntoa(ip_addr)}:#{port} expired")
+      {_val, state} = pop_in(state.chann_to_addr[number])
+      {_val, state} = pop_in(state.addr_to_chann[addr])
+      {_val, state} = pop_in(state.chann_to_time[number])
+
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info(msg, state) do
     Logger.warning("Got unexpected OTP message: #{inspect(msg)}")
     {:noreply, state}
@@ -133,7 +177,7 @@ defmodule ExTURN.AllocationHandler do
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :refresh}} = msg, state) do
-    Logger.info("Received refresh request")
+    Logger.info("Received 'refresh' request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
     with {:ok, key} <- Auth.authenticate(msg, username: state.username),
@@ -167,27 +211,21 @@ defmodule ExTURN.AllocationHandler do
   end
 
   defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
+    Logger.info("Received 'create_permission' request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
-    case Auth.authenticate(msg, username: state.username) do
-      {:ok, key} ->
-        # TODO: handle multiple addresses
-        # TODO: assume that address is correct for now
-        {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
+    with {:ok, key} <- Auth.authenticate(msg, username: state.username),
+         {:ok, state} <- install_of_refresh_permission(msg, state) do
+      type = %Type{class: :success_response, method: msg.type.method}
 
-        # TODO: setup timer
-        state = %{state | permissions: MapSet.put(state.permissions, xor_addr.address)}
+      msg.transaction_id
+      |> Message.new(type, [])
+      |> Message.with_integrity(key)
+      |> Message.encode()
+      |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
 
-        type = %Type{class: :success_response, method: msg.type.method}
-
-        msg.transaction_id
-        |> Message.new(type, [])
-        |> Message.with_integrity(key)
-        |> Message.encode()
-        |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
-
-        {:ok, state}
-
+      {:ok, state}
+    else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warn(log_msg)
@@ -197,47 +235,52 @@ defmodule ExTURN.AllocationHandler do
   end
 
   defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
-    {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
-    {:ok, data} = Message.get_attribute(msg, Data)
+    with {:ok, %XORPeerAddress{address: ip_addr, port: port}} <- get_xor_peer_address(msg),
+         {:ok, %Data{value: data}} <- get_data(msg),
+         true <- Map.has_key?(state.permissions, ip_addr) do
+      # TODO: dont fragment attribute
+      :gen_udp.send(state.socket, ip_addr, port, data)
+      {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
+    else
+      false ->
+        {:ok, %XORPeerAddress{address: addr}} = get_xor_peer_address(msg)
 
-    :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data.value)
-
-    {:ok, %{state | out_bytes: state.out_bytes + byte_size(data.value)}}
-  end
-
-  defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
-    {c_ip, c_port, _, _, _} = state.five_tuple
-
-    case Auth.authenticate(msg, username: state.username) do
-      {:ok, key} ->
-        {:ok, channel_num} = Message.get_attribute(msg, ChannelNumber)
-        {:ok, xor_addr} = Message.get_attribute(msg, XORPeerAddress)
-
-        {response, state} =
-          if family(xor_addr.address) != :ipv4 do
-            type = %Type{class: :error_response, method: msg.type.method}
-
-            msg =
-              Message.new(msg.transaction_id, type, [%ErrorCode{code: 443}]) |> Message.encode()
-
-            {msg, state}
-          else
-            state = put_in(state, [:channels, channel_num.number], xor_addr)
-            type = %Type{class: :success_response, method: msg.type.method}
-
-            msg =
-              msg.transaction_id
-              |> Message.new(type, [])
-              |> Message.with_integrity(key)
-              |> Message.encode()
-
-            {msg, state}
-          end
-
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        Logger.warning(
+          "Error while processing 'indication' request, no permission for #{:inet.ntoa(addr)}"
+        )
 
         {:ok, state}
 
+      {:error, reason} ->
+        {_response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warning("Error while processing 'indication' request. " <> log_msg)
+        # no response here, messages are silently discarded
+        {:ok, state}
+    end
+  end
+
+  defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
+    Logger.info("Received 'channel_bind' request")
+    {c_ip, c_port, _, _, _} = state.five_tuple
+
+    with {:ok, key} <- Auth.authenticate(msg, username: state.username),
+         {:ok, %XORPeerAddress{address: ip_addr, port: port}} <- get_xor_peer_address(msg),
+         {:ok, %ChannelNumber{number: number}} <- get_channel_number(msg),
+         {:ok, state} <- assign_channel(ip_addr, port, number, state) do
+      type = %Type{class: :success_response, method: msg.type.method}
+
+      {:ok, state} = install_of_refresh_permission(msg, state, limit: 1)
+
+      msg.transaction_id
+      |> Message.new(type, [])
+      |> Message.with_integrity(key)
+      |> Message.encode()
+      |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
+
+      Logger.info("Succesfully bound channel #{number} to address #{:inet.ntoa(ip_addr)}:#{port}")
+
+      {:ok, state}
+    else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warn(log_msg)
@@ -246,23 +289,93 @@ defmodule ExTURN.AllocationHandler do
     end
   end
 
-  defp handle_msg(<<channel_num::16, _len::16, data::binary>>, state)
-       when channel_num in [0x4000, 0x4FFF] do
-    xor_addr = Map.fetch!(state.channels, channel_num)
-    :gen_udp.send(state.socket, xor_addr.address, xor_addr.port, data)
+  defp handle_msg(<<number::16, len::16, data::binary-size(len), _padding::binary>>, state)
+       when number in 0x4000..0x7FFE do
+    # TODO: RFC suggests comparing `len` to length in UDP header and discarding if appropriate
+    case Map.fetch(state.chann_to_addr, number) do
+      {:ok, addr} ->
+        :gen_udp.send(state.socket, addr, data)
+        {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
 
-    {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
+      :error ->
+        {:ok, state}
+    end
   end
-
-  # defp handle_msg(<<channel_num::16, len::16, data::binary>>, state) do
-
-  # end
 
   defp handle_msg(msg, state) do
     Logger.warning("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
     {:ok, state}
   end
 
-  defp family({_, _, _, _}), do: :ipv4
-  defp family({_, _, _, _, _, _, _, _}), do: :ipv6
+  defp install_of_refresh_permission(msg, state, opts \\ []) do
+    case Message.get_all_attributes(msg, XORPeerAddress) do
+      nil ->
+        {:error, :no_xor_peer_address_attribute}
+
+      {:error, _reason} ->
+        {:error, :invalid_xor_peer_address}
+
+      {:ok, addrs} ->
+        limit = Keyword.get(opts, :limit)
+        addrs = if(limit != nil, do: Enum.take(addrs, limit), else: addrs)
+
+        permissions =
+          Map.new(addrs, fn %XORPeerAddress{address: addr} ->
+            Process.send_after(self(), {:check_permission, addr}, @permission_lifetime * 1000)
+            Logger.info("Succesfully created or refreshed permission for #{:inet.ntoa(addr)}")
+            {addr, System.os_time(:second) + @permission_lifetime}
+          end)
+
+        state = update_in(state.permissions, &Map.merge(&1, permissions))
+        {:ok, state}
+    end
+  end
+
+  defp get_xor_peer_address(msg) do
+    case Message.get_attribute(msg, XORPeerAddress) do
+      {:ok, _attr} = resp -> resp
+      nil -> {:error, :no_xor_peer_address_attribute}
+      {:error, _reason} -> {:error, :invalid_xor_peer_address}
+    end
+  end
+
+  defp get_data(msg) do
+    case Message.get_attribute(msg, Data) do
+      {:ok, _attr} = resp -> resp
+      nil -> {:error, :no_data_attribute}
+      {:error, _reason} -> {:error, :invalid_data}
+    end
+  end
+
+  defp get_channel_number(msg) do
+    case Message.get_attribute(msg, ChannelNumber) do
+      {:ok, _attr} = resp -> resp
+      nil -> {:error, :no_channel_number_attribute}
+      {:error, _reason} -> {:error, :invalid_channel_number}
+    end
+  end
+
+  defp assign_channel(ip_addr, port, number, state) do
+    addr = {ip_addr, port}
+    cur_addr = Map.get(state.chann_to_addr, number)
+    cur_number = Map.get(state.addr_to_chann, addr)
+
+    with true <- number in 0x4000..0x7FFE,
+         {:num, true} <- {:num, is_nil(cur_addr) or cur_addr == addr},
+         {:addr, true} <- {:addr, is_nil(cur_number) or cur_number == number} do
+      state =
+        state
+        |> put_in([:chann_to_addr, number], addr)
+        |> put_in([:addr_to_chann, addr], number)
+        |> put_in([:chann_to_time, number], System.os_time(:second) + @channel_lifetime)
+
+      Process.send_after(self(), {:check_channel, number}, @channel_lifetime)
+
+      {:ok, state}
+    else
+      false -> {:error, :channel_number_out_of_range}
+      {:num, false} -> {:error, :channel_number_bound}
+      {:addr, false} -> {:error, :addr_bound_to_channel}
+    end
+  end
 end
