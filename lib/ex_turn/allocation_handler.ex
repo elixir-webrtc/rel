@@ -95,10 +95,12 @@ defmodule ExTURN.AllocationHandler do
           xor_addr = %XORPeerAddress{port: port, address: ip_addr}
           data = %Data{value: packet}
 
-          %Type{class: :indication, method: :data}
-          |> Message.new([xor_addr, data])
-          |> Message.encode()
-          |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
+          response =
+            %Type{class: :indication, method: :data}
+            |> Message.new([xor_addr, data])
+            |> Message.encode()
+
+          :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       end
 
       state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
@@ -184,11 +186,13 @@ defmodule ExTURN.AllocationHandler do
          {:ok, time_to_expiry} <- Utils.get_lifetime(msg) do
       type = %Type{class: :success_response, method: :refresh}
 
-      msg.transaction_id
-      |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
-      |> Message.with_integrity(key)
-      |> Message.encode()
-      |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
+      response =
+        msg.transaction_id
+        |> Message.new(type, [%Lifetime{lifetime: time_to_expiry}])
+        |> Message.with_integrity(key)
+        |> Message.encode()
+
+      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       if time_to_expiry == 0 do
         Logger.info("Allocation deleted with LIFETIME=0 refresh request")
@@ -218,11 +222,13 @@ defmodule ExTURN.AllocationHandler do
          {:ok, state} <- install_of_refresh_permission(msg, state) do
       type = %Type{class: :success_response, method: msg.type.method}
 
-      msg.transaction_id
-      |> Message.new(type, [])
-      |> Message.with_integrity(key)
-      |> Message.encode()
-      |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
+      response =
+        msg.transaction_id
+        |> Message.new(type, [])
+        |> Message.with_integrity(key)
+        |> Message.encode()
+
+      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       {:ok, state}
     else
@@ -271,11 +277,13 @@ defmodule ExTURN.AllocationHandler do
 
       {:ok, state} = install_of_refresh_permission(msg, state, limit: 1)
 
-      msg.transaction_id
-      |> Message.new(type, [])
-      |> Message.with_integrity(key)
-      |> Message.encode()
-      |> then(&:gen_udp.send(state.turn_socket, c_ip, c_port, &1))
+      response =
+        msg.transaction_id
+        |> Message.new(type, [])
+        |> Message.with_integrity(key)
+        |> Message.encode()
+
+      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       Logger.info("Succesfully bound channel #{number} to address #{:inet.ntoa(ip_addr)}:#{port}")
 

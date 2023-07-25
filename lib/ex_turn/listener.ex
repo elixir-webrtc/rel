@@ -121,23 +121,16 @@ defmodule ExTURN.Listener do
     Logger.info("Received 'binding' request")
     {c_ip, c_port, _, _, _} = five_tuple
 
-    case Auth.authenticate(msg) do
-      {:ok, key} ->
-        type = %Type{class: :success_response, method: :binding}
+    type = %Type{class: :success_response, method: :binding}
 
-        msg.transaction_id
-        |> Message.new(type, [
-          %XORMappedAddress{port: c_port, address: c_ip}
-        ])
-        |> Message.with_integrity(key)
-        |> Message.encode()
-        |> then(&:gen_udp.send(socket, c_ip, c_port, &1))
+    response =
+      msg.transaction_id
+      |> Message.new(type, [
+        %XORMappedAddress{port: c_port, address: c_ip}
+      ])
+      |> Message.encode()
 
-      {:error, reason} ->
-        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warning(log_msg)
-        :gen_udp.send(socket, c_ip, c_port, response)
-    end
+    :gen_udp.send(socket, c_ip, c_port, response)
   end
 
   defp handle_message(
