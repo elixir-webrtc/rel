@@ -81,7 +81,7 @@ defmodule ExTURN.Listener do
     end
   end
 
-  defp process(socket, client_ip, client_port, <<first_byte::8, _rest::binary>> = packet) do
+  defp process(socket, client_ip, client_port, <<two_bits::2, _rest::bitstring>> = packet) do
     {:ok, {server_ip, server_port}} = :inet.sockname(socket)
     five_tuple = {client_ip, client_port, server_ip, server_port, :udp}
 
@@ -89,18 +89,24 @@ defmodule ExTURN.Listener do
 
     # FIXME: according to RFCs, unknown comprehension-required
     # attributes should result in error response 420, but oh well
+    case two_bits do
+      0 ->
+        case Message.decode(packet) do
+          {:ok, msg} ->
+            handle_message(socket, five_tuple, msg)
 
-    with true <- first_byte in 0..3,
-         {:ok, msg} <- Message.decode(packet) do
-      handle_message(socket, five_tuple, msg)
-    else
-      false ->
+          {:error, reason} ->
+            Logger.warning(
+              "Failed to decode STUN packet, reason: #{inspect(reason)}, packet: #{inspect(packet)}"
+            )
+        end
+
+      1 ->
         handle_message(socket, five_tuple, packet)
 
-      {:error, reason} ->
-        # TODO: response?
+      _other ->
         Logger.warning(
-          "Failed to decode STUN packet, reason: #{inspect(reason)}, packet: #{inspect(packet)}"
+          "Received packet that is neither STUN formatted nor ChannelData, packet: #{inspect(packet)}"
         )
     end
 
@@ -112,26 +118,19 @@ defmodule ExTURN.Listener do
          five_tuple,
          %Message{type: %Type{class: :request, method: :binding}} = msg
        ) do
-    Logger.info("Received binding request")
+    Logger.info("Received 'binding' request")
     {c_ip, c_port, _, _, _} = five_tuple
 
-    case Auth.authenticate(msg) do
-      {:ok, key} ->
-        type = %Type{class: :success_response, method: :binding}
+    type = %Type{class: :success_response, method: :binding}
 
-        msg.transaction_id
-        |> Message.new(type, [
-          %XORMappedAddress{port: c_port, address: c_ip}
-        ])
-        |> Message.with_integrity(key)
-        |> Message.encode()
-        |> then(&:gen_udp.send(socket, c_ip, c_port, &1))
+    response =
+      msg.transaction_id
+      |> Message.new(type, [
+        %XORMappedAddress{port: c_port, address: c_ip}
+      ])
+      |> Message.encode()
 
-      {:error, reason} ->
-        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warning(log_msg)
-        :gen_udp.send(socket, c_ip, c_port, response)
-    end
+    :gen_udp.send(socket, c_ip, c_port, response)
   end
 
   defp handle_message(
@@ -205,6 +204,7 @@ defmodule ExTURN.Listener do
   end
 
   defp handle_message(socket, five_tuple, msg) do
+    # TODO: are Registry entries removed fast enough?
     case fetch_allocation(five_tuple) do
       {:ok, alloc} ->
         AllocationHandler.process_message(alloc, msg)
@@ -217,7 +217,7 @@ defmodule ExTURN.Listener do
             {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
 
             Logger.warn(
-              "No allocation and this is not an allocate/binding request, message: #{inspect(msg)}"
+              "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
             )
 
             :gen_udp.send(socket, c_ip, c_port, response)

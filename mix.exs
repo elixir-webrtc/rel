@@ -33,7 +33,7 @@ defmodule ExTurn.MixProject do
   defp deps do
     [
       {:toml, "~> 0.7"},
-      {:ex_stun, github: "elixir-webrtc/ex_stun"},
+      {:ex_stun, git: "https://github.com/elixir-webrtc/ex_stun.git"},
       {:bandit, "~> 0.7"},
       {:cors_plug, "~> 3.0"},
       {:jason, "~> 1.4"},

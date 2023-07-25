@@ -122,6 +122,33 @@ defmodule ExTURN.Utils do
       :stale_nonce ->
         {"Stale nonce", 438, true}
 
+      :no_xor_peer_address_attribute ->
+        {"No XOR-PEER-ADDRESS attribute", 400, false}
+
+      :invalid_xor_peer_address ->
+        {"Failed to decode XOR-PEER-ADDRESS", 400, false}
+
+      :no_data_attribute ->
+        {"No DATA attribute", 400, false}
+
+      :invalid_data ->
+        {"Failed to decode DATA", 400, false}
+
+      :no_channel_number_attribute ->
+        {"No CHANNEL-NUMBER attribute", 400, false}
+
+      :invalid_channel_number ->
+        {"Failed to decode CHANNEL-NUMBER", 400, false}
+
+      :channel_number_out_of_range ->
+        {"Channel number is out of allowed range", 400, false}
+
+      :channel_number_bound ->
+        {"Channel number is already bound", 400, false}
+
+      :addr_bound_to_channel ->
+        {"Address is already bound to channel", 400, false}
+
       other ->
         Logger.error("Unsupported error type: #{other}")
         {"", 500}
