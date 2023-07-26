@@ -1,0 +1,15 @@
+services:
+  ex_turn:
+    build: .
+    network_mode: "host"
+
+
+
+
+
+  prometheus:
+    image: "ubuntu:latest"
+
+
+  # grafana:
+    
