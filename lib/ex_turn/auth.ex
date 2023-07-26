@@ -3,7 +3,7 @@ defmodule ExTURN.Auth do
   require Logger
 
   alias ExSTUN.Message
-  alias ExSTUN.Message.Attribute.{Nonce, MessageIntegrity, Realm, Username}
+  alias ExSTUN.Message.Attribute.{MessageIntegrity, Nonce, Realm, Username}
 
   @auth_secret Application.compile_env!(:ex_turn, :auth_secret)
   @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)

@@ -2,6 +2,7 @@ defmodule ExTURN.Monitor do
   @moduledoc false
   require Logger
 
+  @spec start(pid(), :inet.socket()) :: :ok
   def start(pid, socket) do
     ref = Process.monitor(pid)
 

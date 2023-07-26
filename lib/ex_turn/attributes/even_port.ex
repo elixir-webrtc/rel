@@ -1,8 +1,8 @@
 defmodule ExTURN.Attribute.EvenPort do
   @moduledoc false
-  alias ExSTUN.Message.RawAttribute
-
   @behaviour ExSTUN.Message.Attribute
+
+  alias ExSTUN.Message.RawAttribute
 
   @attr_type 0x0018
 

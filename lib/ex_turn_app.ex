@@ -4,6 +4,7 @@ defmodule ExTURN.App do
 
   require Logger
 
+  @impl true
   def start(_, _) do
     Logger.info("Starting ExTURN...")
 

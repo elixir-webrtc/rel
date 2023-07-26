@@ -10,9 +10,14 @@ defmodule ExTURN.AllocationHandler do
   alias ExTURN.Attribute.{ChannelNumber, Data, Lifetime, XORPeerAddress}
   alias ExTURN.Utils
 
+  @type five_tuple() ::
+          {:inet.ip_address(), :inet.port_number(), :inet.ip_address(), :inet.port_number(), :udp}
+
   @permission_lifetime 60 * 5
   @channel_lifetime 60 * 10
 
+  @spec start_link(:inet.socket(), :inet.socket(), five_tuple(), String.t(), non_neg_integer()) ::
+          GenServer.on_start()
   def start_link(turn_socket, alloc_socket, five_tuple, username, lifetime) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
 

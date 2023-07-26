@@ -3,9 +3,9 @@ defmodule ExTURN.AuthProvider do
   # REST service described in https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00
   use Plug.Router
 
-  alias ExTURN.Auth
-
   require Logger
+
+  alias ExTURN.Auth
 
   plug(CORSPlug)
   plug(:match)

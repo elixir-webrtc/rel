@@ -5,9 +5,9 @@ defmodule ExTURN.Listener do
   alias ExTURN.Attribute.{
     EvenPort,
     Lifetime,
+    RequestedAddressFamily,
     RequestedTransport,
     ReservationToken,
-    RequestedAddressFamily,
     XORRelayedAddress
   }
 
@@ -21,6 +21,7 @@ defmodule ExTURN.Listener do
 
   @default_alloc_ports MapSet.new(49_152..65_535)
 
+  @spec listen(:inet.ip_address(), :inet.port_number()) :: :ok
   def listen(ip, port) do
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
@@ -87,7 +88,7 @@ defmodule ExTURN.Listener do
 
     Logger.metadata(client: "#{:inet.ntoa(client_ip)}:#{client_port}")
 
-    # FIXME: according to RFCs, unknown comprehension-required
+    # TODO: according to RFCs, unknown comprehension-required
     # attributes should result in error response 420, but oh well
     case two_bits do
       0 ->

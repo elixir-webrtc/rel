@@ -4,10 +4,10 @@ defmodule ExTURN.Attribute.XORPeerAddress do
 
   It is encoded in the same way as XOR Mapped Address.
   """
-  alias ExSTUN.Message.RawAttribute
-  alias ExSTUN.Message.Attribute.XORMappedAddress
-
   @behaviour ExSTUN.Message.Attribute
+
+  alias ExSTUN.Message.Attribute.XORMappedAddress
+  alias ExSTUN.Message.RawAttribute
 
   @attr_type 0x0012
 

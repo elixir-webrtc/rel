@@ -1,10 +1,10 @@
 defmodule ExTURN.Attribute.Lifetime do
   @moduledoc false
+  @behaviour ExSTUN.Message.Attribute
+
   alias ExSTUN.Message.RawAttribute
 
   @attr_type 0x000D
-
-  @behaviour ExSTUN.Message.Attribute
 
   @type t() :: %__MODULE__{
           lifetime: integer()
