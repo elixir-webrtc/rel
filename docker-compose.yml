@@ -1,15 +1,27 @@
+version: '3.2'
 services:
   ex_turn:
     build: .
     network_mode: "host"
 
-
-
-
-
   prometheus:
-    image: "ubuntu:latest"
+    image: "prom/prometheus:v2.46.0"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - ex_turn
 
-
-  # grafana:
-    
+  grafana:
+    image: "grafana/grafana:10.0.3"
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - "./grafana_data:/var/lib/grafana"
+    depends_on:
+      - prometheus
