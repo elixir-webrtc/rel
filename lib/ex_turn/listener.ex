@@ -40,10 +40,6 @@ defmodule ExTURN.Listener do
         ]
       )
 
-    # in case 0.0.0.0 was used, AuthProvider requires actuall interface address
-    {:ok, {server_ip, _port}} = :inet.sockname(socket)
-    Application.put_env(:ex_turn, :listen_ip, server_ip)
-
     spawn(ExTURN.Monitor, :start, [self(), socket])
 
     recv_loop(socket, %{
