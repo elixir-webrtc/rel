@@ -5,20 +5,18 @@ defmodule ExTURN.Auth do
   alias ExSTUN.Message
   alias ExSTUN.Message.Attribute.{MessageIntegrity, Nonce, Realm, Username}
 
-  @auth_secret Application.compile_env!(:ex_turn, :auth_secret)
-  @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)
-  # 1 hour in nanoseconds, see https://datatracker.ietf.org/doc/html/rfc5766#section-4
-  @nonce_lifetime 60 * 60 * 1_000_000_000
-  # 1 day in seconds by default, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
-  @credentials_lifetime Application.compile_env(:ex_turn, :credentials_lifetime, 24 * 60 * 60)
+  @nonce_lifetime Application.compile_env!(:ex_turn, :nonce_lifetime)
+  @credentials_lifetime Application.compile_env!(:ex_turn, :credentials_lifetime)
 
   @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, atom()}
   def authenticate(%Message{} = msg, opts \\ []) do
+    auth_secret = Application.fetch_env!(:ex_turn, :auth_secret)
+
     with :ok <- verify_message_integrity(msg),
          {:ok, username, nonce} <- verify_attrs_presence(msg),
          :ok <- verify_username(msg.type.method, username, opts),
          :ok <- verify_nonce(nonce),
-         password <- :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode(),
+         password <- :crypto.mac(:hmac, :sha, auth_secret, username) |> :base64.encode(),
          {:ok, key} <- Message.authenticate_lt(msg, password) do
       {:ok, key}
     else
@@ -66,7 +64,9 @@ defmodule ExTURN.Auth do
       |> :base64.decode()
       |> String.split(" ", parts: 2)
 
-    is_hash_valid? = hash == :crypto.hash(:sha256, "#{timestamp}:#{@nonce_secret}")
+    nonce_secret = Application.fetch_env!(:ex_turn, :nonce_secret)
+
+    is_hash_valid? = hash == :crypto.hash(:sha256, "#{timestamp}:#{nonce_secret}")
 
     is_stale? =
       String.to_integer(timestamp) + @nonce_lifetime < System.monotonic_time(:nanosecond)
@@ -77,10 +77,11 @@ defmodule ExTURN.Auth do
   @spec generate_credentials(String.t() | nil) ::
           {username :: String.t(), password :: String.t(), ttl :: non_neg_integer()}
   def generate_credentials(username \\ nil) do
+    auth_secret = Application.fetch_env!(:ex_turn, :auth_secret)
     timestamp = System.os_time(:second) + @credentials_lifetime
 
     username = if is_nil(username), do: "#{timestamp}", else: "#{timestamp}:#{username}"
-    password = :crypto.mac(:hmac, :sha, @auth_secret, username) |> :base64.encode()
+    password = :crypto.mac(:hmac, :sha, auth_secret, username) |> :base64.encode()
 
     {username, password, @credentials_lifetime}
   end

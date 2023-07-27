@@ -20,7 +20,7 @@ defmodule ExTURN.AuthProvider do
       username = Map.get(query_params, "username")
       {username, password, ttl} = Auth.generate_credentials(username)
 
-      ip_addr = Application.fetch_env!(:ex_turn, :public_ip)
+      ip_addr = Application.fetch_env!(:ex_turn, :listen_ip)
       port = Application.fetch_env!(:ex_turn, :listen_port)
 
       response =
@@ -38,8 +38,10 @@ defmodule ExTURN.AuthProvider do
       |> send_resp(200, response)
     else
       _other ->
+        conn = fetch_query_params(conn)
+
         Logger.info(
-          "Invalid credential request from #{:inet.ntoa(conn.remote_ip)}, query params: #{fetch_query_params(conn)}"
+          "Invalid credential request from #{:inet.ntoa(conn.remote_ip)}, query params: #{inspect(conn.query_params)}"
         )
 
         send_resp(conn, 400, "invalid request")

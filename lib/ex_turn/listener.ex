@@ -40,6 +40,10 @@ defmodule ExTURN.Listener do
         ]
       )
 
+    # in case 0.0.0.0 was used, AuthProvider requires actuall interface address
+    {:ok, {server_ip, _port}} = :inet.sockname(socket)
+    Application.put_env(:ex_turn, :listen_ip, server_ip)
+
     spawn(ExTURN.Monitor, :start, [self(), socket])
 
     recv_loop(socket, %{
@@ -154,7 +158,7 @@ defmodule ExTURN.Listener do
          :ok <- check_even_port(even_port),
          {:ok, alloc_port} <- get_available_port(),
          {:ok, lifetime} <- Utils.get_lifetime(msg) do
-      alloc_ip = Application.fetch_env!(:ex_turn, :public_ip)
+      alloc_ip = Application.fetch_env!(:ex_turn, :relay_ip)
 
       type = %Type{class: :success_response, method: msg.type.method}
 

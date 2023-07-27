@@ -13,8 +13,8 @@ defmodule ExTURN.AllocationHandler do
   @type five_tuple() ::
           {:inet.ip_address(), :inet.port_number(), :inet.ip_address(), :inet.port_number(), :udp}
 
-  @permission_lifetime 60 * 5
-  @channel_lifetime 60 * 10
+  @permission_lifetime Application.compile_env!(:ex_turn, :permission_lifetime)
+  @channel_lifetime Application.compile_env!(:ex_turn, :channel_lifetime)
 
   @spec start_link(:inet.socket(), :inet.socket(), five_tuple(), String.t(), non_neg_integer()) ::
           GenServer.on_start()
