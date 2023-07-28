@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: 'TURN Stats'
+    orgId: 1
+    folder: ''
+    type: file
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards

@@ -26,5 +26,3 @@ ex_turn-*.tar
 /tmp/
 
 .elixir_ls/
-
-/grafana_data

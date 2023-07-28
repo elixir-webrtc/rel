@@ -24,9 +24,9 @@ RUN mix release
 
 FROM alpine:3.18.0 as app
 
-WORKDIR /app
-
 RUN apk add --no-cache --update libncursesw openssl libstdc++
+
+WORKDIR /app
 
 COPY --from=build /app/_build/prod/rel/ex_turn ./
 
