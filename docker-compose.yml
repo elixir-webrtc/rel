@@ -5,6 +5,7 @@ services:
     container_name: turn
     restart: unless_stopped
     network_mode: host
+    env_file: .env
    # TODO: volume with certs?
 
   prometheus:
