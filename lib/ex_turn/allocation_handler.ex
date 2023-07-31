@@ -213,7 +213,7 @@ defmodule ExTURN.AllocationHandler do
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warn(log_msg)
+        Logger.warning(log_msg)
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
@@ -239,7 +239,7 @@ defmodule ExTURN.AllocationHandler do
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warn(log_msg)
+        Logger.warning(log_msg)
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
@@ -296,7 +296,7 @@ defmodule ExTURN.AllocationHandler do
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warn(log_msg)
+        Logger.warning(log_msg)
         :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end

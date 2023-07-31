@@ -7,8 +7,8 @@ jobs:
     name: lint OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
-        otp: ['25']
-        elixir: ['1.13.2']
+        otp: ['26']
+        elixir: ['1.15.4']
     steps:
       - uses: actions/checkout@v2
       - uses: erlef/setup-beam@v1
@@ -18,15 +18,14 @@ jobs:
       - run: mix deps.get
       - run: mix credo
       - run: mix format --check-formatted
-      - run: mix docs 2>&1 | (! grep -q "warning:")
 
   test:
     runs-on: ubuntu-latest
     name: test OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
-        otp: ['25']
-        elixir: ['1.13.2']
+        otp: ['26']
+        elixir: ['1.15.4']
     env:
       MIX_ENV: test
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

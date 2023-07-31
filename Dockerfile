@@ -1,4 +1,4 @@
-FROM hexpm/elixir:1.14.4-erlang-25.3.2-alpine-3.18.0 as build
+FROM hexpm/elixir:1.15.4-erlang-26.0.2-alpine-3.18.2 as build
 
 RUN apk add --no-cache --update git
 
@@ -22,7 +22,7 @@ COPY config/runtime.exs config/
 
 RUN mix release
 
-FROM alpine:3.18.0 as app
+FROM alpine:3.18.2 as app
 
 RUN apk add --no-cache --update libncursesw openssl libstdc++
 

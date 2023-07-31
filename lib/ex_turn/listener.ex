@@ -217,14 +217,14 @@ defmodule ExTURN.Listener do
           %Message{} ->
             {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
 
-            Logger.warn(
+            Logger.warning(
               "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
             )
 
             :gen_udp.send(socket, c_ip, c_port, response)
 
           _other ->
-            Logger.warn("No allocation and is not a STUN message, silently discarded")
+            Logger.warning("No allocation and is not a STUN message, silently discarded")
             :ok
         end
     end
