@@ -180,7 +180,7 @@ defmodule ExTURN.Listener do
           ]
         )
 
-      Logger.info("Succesfully created allocation")
+      Logger.info("Succesfully created allocation, relay port: #{alloc_port}")
 
       {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
 

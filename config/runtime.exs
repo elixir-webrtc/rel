@@ -28,12 +28,22 @@ defmodule ConfigParser do
   end
 end
 
+use_tls? = not is_nil(System.get_env("AUTH_PROVIDER_USE_TLS"))
+keyfile = System.get_env("KEY_FILE_PATH")
+certfile = System.get_env("CERT_FILE_PATH")
+
+if use_tls? and (is_nil(keyfile) or is_nil(certfile)) do
+  raise "Both KEY_FILE_PATH and CERT_FILE_PATH must be set is TLS is used"
+end
+
 config :ex_turn,
   relay_ip: System.get_env("RELAY_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
   listen_ip: System.get_env("LISTEN_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
   listen_port: System.get_env("UDP_LISTEN_PORT", "3478") |> ConfigParser.parse_port(),
   auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigParser.parse_port(),
-  auth_provider_use_tls?: not is_nil(System.get_env("AUTH_PROVIDER_USE_TLS")),
   domain_name: System.get_env("DOMAIN_NAME", "example.com"),
+  auth_provider_use_tls?: use_tls?,
+  keyfile: keyfile,
+  certfile: certfile,
   auth_secret: :crypto.strong_rand_bytes(64),
   nonce_secret: :crypto.strong_rand_bytes(64)

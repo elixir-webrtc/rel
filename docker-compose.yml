@@ -6,6 +6,7 @@ services:
     env_file: .env
     restart: unless_stopped
     network_mode: host
+   # TODO: volume with certs?
 
   prometheus:
     image: prom/prometheus:v2.46.0
@@ -34,6 +35,8 @@ services:
     depends_on:
       - prometheus
     # TODO: default grafana credentials
+    # TODO: https
+    # TODO: allow to set port other than 3000
 
 volumes:
   grafana_data: {}
