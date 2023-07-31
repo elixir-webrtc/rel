@@ -1,9 +1,8 @@
 version: '3.2'
 services:
-  ex_turn:
-    build: .
-    container_name: ex_turn
-    env_file: .env
+  turn:
+    image: ghcr.io/elixir-webrtc/ex_turn:${TAG:-latest}
+    container_name: turn
     restart: unless_stopped
     network_mode: host
    # TODO: volume with certs?
@@ -21,7 +20,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
-      - ex_turn
+      - turn
 
   grafana:
     image: grafana/grafana:10.0.3
@@ -34,9 +33,9 @@ services:
       - ./grafana/provisioning/:/etc/grafana/provisioning
     depends_on:
       - prometheus
-    # TODO: default grafana credentials
-    # TODO: https
-    # TODO: allow to set port other than 3000
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GF_SECURITY_ADMIN_PASSWORD}"
+      GF_SECURITY_ADMIN_USER: "${GF_SECURITY_ADMIN_USER}"
 
 volumes:
   grafana_data: {}
