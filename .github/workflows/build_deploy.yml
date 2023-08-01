@@ -54,7 +54,11 @@ jobs:
         env:
           GF_SECURITY_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
           GF_SECURITY_ADMIN_USER: ${{ secrets.GF_SECURITY_ADMIN_USER }}
-        run: echo "DOMAIN=${{ secrets.DOMAIN }} \nGF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD \nGF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER" > .env
+        run: |
+          echo "DOMAIN=${{ secrets.DOMAIN }}
+          GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
+          GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
+          TAG=${GITHUB_REF#refs/*/}" > .env
       - name: Remove existing containers
         uses: JimCronqvist/action-ssh@master
         with:
