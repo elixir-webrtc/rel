@@ -4,9 +4,11 @@ defmodule ExTURN.App do
 
   require Logger
 
+  @version Mix.Project.config()[:version]
+
   @impl true
   def start(_, _) do
-    Logger.info("Starting ExTURN...")
+    Logger.info("Starting ExTURN v#{@version}...")
 
     listen_ip = Application.fetch_env!(:ex_turn, :listen_ip)
     listen_port = Application.fetch_env!(:ex_turn, :listen_port)
@@ -37,7 +39,8 @@ defmodule ExTURN.App do
       end
 
     children = [
-      {TelemetryMetricsPrometheus, metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]},
+      {TelemetryMetricsPrometheus,
+       metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]},
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
       {Bandit,

@@ -37,7 +37,8 @@ if use_tls? and (is_nil(keyfile) or is_nil(certfile)) do
 end
 
 config :ex_turn,
-  auth_provider_ip: System.get_env("AUTH_PROVIDER_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
+  auth_provider_ip:
+    System.get_env("AUTH_PROVIDER_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
   auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigParser.parse_port(),
   auth_provider_use_tls?: use_tls?,
   keyfile: keyfile,

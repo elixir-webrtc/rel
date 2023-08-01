@@ -5,7 +5,10 @@ services:
     container_name: turn
     restart: on-failure
     network_mode: host
-    env_file: .env
+    environment:
+      LISTEN_IP: 0.0.0.0
+      REPLAY_IP: 0.0.0.0
+      DOMAIN: "${DOMAIN}"
 
   prometheus:
     image: prom/prometheus:v2.46.0
