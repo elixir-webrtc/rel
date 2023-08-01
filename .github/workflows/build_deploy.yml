@@ -68,5 +68,5 @@ jobs:
           ssh_private_key: ${{ secrets.PRIV_KEY }}
           ssh_public_key: ${{ secrets.PUB_KEY }}
           stack_file_name: docker-compose.yml
-          args: -p turn --env-file .env -d --remove-orphans
+          args: -p turn --env-file .env up -d --remove-orphans
 
