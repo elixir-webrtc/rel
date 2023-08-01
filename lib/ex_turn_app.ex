@@ -10,6 +10,7 @@ defmodule ExTURN.App do
 
     listen_ip = Application.fetch_env!(:ex_turn, :listen_ip)
     listen_port = Application.fetch_env!(:ex_turn, :listen_port)
+    auth_provider_ip = Application.fetch_env!(:ex_turn, :auth_provider_ip)
     auth_provider_port = Application.fetch_env!(:ex_turn, :auth_provider_port)
     use_tls? = Application.fetch_env!(:ex_turn, :auth_provider_use_tls?)
     keyfile = Application.fetch_env!(:ex_turn, :keyfile)
@@ -36,7 +37,7 @@ defmodule ExTURN.App do
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
       {Bandit,
-       [plug: ExTURN.AuthProvider, ip: listen_ip, port: auth_provider_port] ++ scheme_opts},
+       [plug: ExTURN.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts},
       listener_child_spec
     ]
 
