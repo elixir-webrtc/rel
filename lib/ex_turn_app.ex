@@ -10,11 +10,15 @@ defmodule ExTURN.App do
 
     listen_ip = Application.fetch_env!(:ex_turn, :listen_ip)
     listen_port = Application.fetch_env!(:ex_turn, :listen_port)
+
     auth_provider_ip = Application.fetch_env!(:ex_turn, :auth_provider_ip)
     auth_provider_port = Application.fetch_env!(:ex_turn, :auth_provider_port)
     use_tls? = Application.fetch_env!(:ex_turn, :auth_provider_use_tls?)
     keyfile = Application.fetch_env!(:ex_turn, :keyfile)
     certfile = Application.fetch_env!(:ex_turn, :certfile)
+
+    metrics_ip = Application.fetch_env!(:ex_turn, :metrics_ip)
+    metrics_port = Application.fetch_env!(:ex_turn, :metrics_port)
 
     listener_child_spec = %{
       id: ExTURN.Listener,
@@ -33,7 +37,7 @@ defmodule ExTURN.App do
       end
 
     children = [
-      {TelemetryMetricsPrometheus, metrics: metrics()},
+      {TelemetryMetricsPrometheus, metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]},
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
       {Bandit,
