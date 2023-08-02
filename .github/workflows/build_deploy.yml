@@ -1,4 +1,4 @@
-name: Build and publish Docker image, deploy
+name: Build and publish Docker image, deploy to the server
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
     needs: build-and-push-image
     steps:
       - uses: actions/checkout@v3
-      - name: Remove old and deploy new version
+      - name: Deploy the new version
         uses: JimCronqvist/action-ssh@master
         env:
           GF_SECURITY_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}

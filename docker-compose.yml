@@ -9,6 +9,7 @@ services:
       LISTEN_IP: 0.0.0.0
       REPLAY_IP: 0.0.0.0
       DOMAIN: "${DOMAIN}"
+      CREDENTIALS_LIFETIME: "10800"
 
   prometheus:
     image: prom/prometheus:v2.46.0

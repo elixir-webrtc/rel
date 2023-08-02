@@ -42,12 +42,21 @@ config :ex_turn,
   auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigParser.parse_port(),
   auth_provider_use_tls?: use_tls?,
   keyfile: keyfile,
-  certfile: certfile,
+  certfile: certfile
+
+config :ex_turn,
   relay_ip: System.get_env("RELAY_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
   listen_ip: System.get_env("LISTEN_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
   listen_port: System.get_env("UDP_LISTEN_PORT", "3478") |> ConfigParser.parse_port(),
-  domain_name: System.get_env("DOMAIN_NAME", "example.com"),
+  domain_name: System.get_env("DOMAIN_NAME", "example.com")
+
+config :ex_turn,
   metrics_ip: System.get_env("METRICS_IP", "127.0.0.1") |> ConfigParser.parse_ip_address(),
-  metrics_port: System.get_env("METRICS_PORT", "9568") |> ConfigParser.parse_port(),
+  metrics_port: System.get_env("METRICS_PORT", "9568") |> ConfigParser.parse_port()
+
+config :ex_turn,
   auth_secret: :crypto.strong_rand_bytes(64),
   nonce_secret: :crypto.strong_rand_bytes(64)
+
+config :ex_turn,
+  credentials_lifetime: System.get_env("CREDENTIALS_LIFETIME", "86400") |> String.to_integer()
