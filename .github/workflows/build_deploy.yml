@@ -58,19 +58,22 @@ jobs:
           echo "DOMAIN=${{ secrets.DOMAIN }}
           GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
           GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
-          TAG=${GITHUB_REF#refs/*/v}" > .env
+          TAG=${{ github.ref_name }}" > .env
       - name: Remove existing containers
         uses: JimCronqvist/action-ssh@master
         with:
           hosts: ${{ secrets.SSH_HOST }}
           privateKey: ${{ secrets.PRIV_KEY }}
-          command: docker rm -f turn grafana prometheus
-      - name: Deploy docker compose to pre-configured server
-        uses: TapTap21/docker-remote-deployment-action@v1.1
+          command: |
+            docker rm -f turn grafana prometheus
+            rm -rf ${DIR_NAME}
+      - name: Deploy new containers
+        uses: JimCronqvist/action-ssh@master
         with:
-          remote_docker_host: ${{ secrets.SSH_HOST }}
-          ssh_private_key: ${{ secrets.PRIV_KEY }}
-          ssh_public_key: ${{ secrets.PUB_KEY }}
-          stack_file_name: docker-compose.yml
-          args: -p turn --env-file .env up -d --remove-orphans
-
+          hosts: ${{ secrets.SSH_HOST }}
+          privateKey: ${{ secrets.PRIV_KEY }}
+          command: |
+            mkdir ${DIR_NAME}
+            cd ${DIR_NAME}
+            git clone -b ${{ github.ref_name }} --depth 1 https://github.com/${{ github.repository }} .
+            ls
