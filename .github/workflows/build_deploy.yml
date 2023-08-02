@@ -50,30 +50,25 @@ jobs:
     needs: build-and-push-image
     steps:
       - uses: actions/checkout@v3
-      - name: Prepare .env file for the deployment
+      - name: Prepare .env file contents
+      - name: Remove old and deploy new version
+        uses: JimCronqvist/action-ssh@master
         env:
           GF_SECURITY_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
           GF_SECURITY_ADMIN_USER: ${{ secrets.GF_SECURITY_ADMIN_USER }}
-        run: |
-          echo "DOMAIN=${{ secrets.DOMAIN }}
-          GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
-          GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
-          TAG=${{ github.ref_name }}" > .env
-      - name: Remove existing containers
-        uses: JimCronqvist/action-ssh@master
+          DOMAIN: ${{ secrets.DOMAIN }}
+          DIR_NAME: ${{ env.DIR_NAME }}
+          TAG: ${{ github.ref_name }}
         with:
           hosts: ${{ secrets.SSH_HOST }}
           privateKey: ${{ secrets.PRIV_KEY }}
           command: |
             docker rm -f turn grafana prometheus
-            rm -rf ${{ secrets.DIR_NAME }}
-      - name: Deploy new containers
-        uses: JimCronqvist/action-ssh@master
-        with:
-          hosts: ${{ secrets.SSH_HOST }}
-          privateKey: ${{ secrets.PRIV_KEY }}
-          command: |
-            mkdir ${{ secrets.DIR_NAME }}
-            cd ${{ secrets.DIR_NAME }}
+            rm -rf $DIR_NAME; mkdir $DIR_NAME
+            cd $DIR_NAME
             git clone -b ${{ github.ref_name }} --depth 1 https://github.com/${{ github.repository }} .
-            ls
+            echo "DOMAIN=$DOMAIN
+            GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
+            GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
+            TAG=${TAG#v}" > .env
+            docker-compose -p turn up -d --remove-orphans
