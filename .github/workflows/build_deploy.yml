@@ -56,7 +56,7 @@ jobs:
           GF_SECURITY_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
           GF_SECURITY_ADMIN_USER: ${{ secrets.GF_SECURITY_ADMIN_USER }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          DIR_NAME: ${{ env.DIR_NAME }}
+          DIR_NAME: ${{ secrets.DIR_NAME }}
           TAG: ${{ github.ref_name }}
         with:
           hosts: ${{ secrets.SSH_HOST }}
