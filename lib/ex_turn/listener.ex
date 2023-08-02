@@ -1,5 +1,7 @@
 defmodule ExTURN.Listener do
   @moduledoc false
+  use Task, restart: :permanent
+
   require Logger
 
   alias ExTURN.Attribute.{
@@ -20,6 +22,11 @@ defmodule ExTURN.Listener do
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
   @default_alloc_ports MapSet.new(49_152..65_535)
+
+  @spec start_link(term()) :: {:ok, pid()}
+  def start_link(args) do
+    Task.start_link(__MODULE__, :listen, args)
+  end
 
   @spec listen(:inet.ip_address(), :inet.port_number()) :: :ok
   def listen(ip, port) do
@@ -184,15 +191,12 @@ defmodule ExTURN.Listener do
 
       {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
 
-      child_spec = %{
-        id: five_tuple,
-        restart: :transient,
-        start:
-          {ExTURN.AllocationHandler, :start_link,
-           [socket, alloc_socket, five_tuple, username, lifetime]}
-      }
+      {:ok, alloc_pid} =
+        DynamicSupervisor.start_child(
+          ExTURN.AllocationSupervisor,
+          {ExTURN.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
+        )
 
-      {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
       :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
       :gen_udp.send(socket, c_ip, c_port, response)

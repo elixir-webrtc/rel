@@ -1,6 +1,7 @@
 defmodule ExTURN.AllocationHandler do
   @moduledoc false
-  use GenServer
+  use GenServer, restart: :transient
+
   require Logger
 
   alias ExSTUN.Message
@@ -16,20 +17,13 @@ defmodule ExTURN.AllocationHandler do
   @permission_lifetime Application.compile_env!(:ex_turn, :permission_lifetime)
   @channel_lifetime Application.compile_env!(:ex_turn, :channel_lifetime)
 
-  @spec start_link(:inet.socket(), :inet.socket(), five_tuple(), String.t(), non_neg_integer()) ::
-          GenServer.on_start()
-  def start_link(turn_socket, alloc_socket, five_tuple, username, lifetime) do
+  @spec start_link(term()) :: GenServer.on_start()
+  def start_link([five_tuple, alloc_socket | _rest] = args) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
 
     GenServer.start_link(
       __MODULE__,
-      [
-        turn_socket: turn_socket,
-        alloc_socket: alloc_socket,
-        five_tuple: five_tuple,
-        username: username,
-        time_to_expiry: lifetime
-      ],
+      args,
       name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_port}}
     )
   end
@@ -40,13 +34,7 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
-  def init(
-        turn_socket: turn_socket,
-        alloc_socket: socket,
-        five_tuple: five_tuple,
-        username: username,
-        time_to_expiry: time_to_expiry
-      ) do
+  def init([five_tuple, socket, turn_socket, username, time_to_expiry]) do
     {c_ip, c_port, s_ip, s_port, _transport} = five_tuple
     alloc_id = "(#{:inet.ntoa(c_ip)}:#{c_port}, #{:inet.ntoa(s_ip)}:#{s_port}, UDP)"
     Logger.metadata(alloc: alloc_id)
@@ -151,7 +139,8 @@ defmodule ExTURN.AllocationHandler do
   def handle_info({:check_permission, addr}, state) do
     if System.os_time(:second) >= state.permissions[addr] do
       Logger.info("Permission for #{:inet.ntoa(addr)} expired")
-      {:noreply, pop_in(state.permissions[addr])}
+      {_val, state} = pop_in(state.permissions[addr])
+      {:noreply, state}
     else
       {:noreply, state}
     end

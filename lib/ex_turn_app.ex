@@ -22,11 +22,6 @@ defmodule ExTURN.App do
     metrics_ip = Application.fetch_env!(:ex_turn, :metrics_ip)
     metrics_port = Application.fetch_env!(:ex_turn, :metrics_port)
 
-    listener_child_spec = %{
-      id: ExTURN.Listener,
-      start: {Task, :start, [ExTURN.Listener, :listen, [listen_ip, listen_port]]}
-    }
-
     scheme_opts =
       if use_tls? do
         [
@@ -43,9 +38,9 @@ defmodule ExTURN.App do
        metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]},
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
+      {ExTURN.Listener, [listen_ip, listen_port]},
       {Bandit,
-       [plug: ExTURN.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts},
-      listener_child_spec
+       [plug: ExTURN.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)
