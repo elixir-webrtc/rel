@@ -66,14 +66,14 @@ jobs:
           privateKey: ${{ secrets.PRIV_KEY }}
           command: |
             docker rm -f turn grafana prometheus
-            rm -rf ${DIR_NAME}
+            rm -rf ${{ secrets.DIR_NAME }}
       - name: Deploy new containers
         uses: JimCronqvist/action-ssh@master
         with:
           hosts: ${{ secrets.SSH_HOST }}
           privateKey: ${{ secrets.PRIV_KEY }}
           command: |
-            mkdir ${DIR_NAME}
-            cd ${DIR_NAME}
+            mkdir ${{ secrets.DIR_NAME }}
+            cd ${{ secrets.DIR_NAME }}
             git clone -b ${{ github.ref_name }} --depth 1 https://github.com/${{ github.repository }} .
             ls
