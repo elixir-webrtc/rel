@@ -57,6 +57,3 @@ config :ex_turn,
 config :ex_turn,
   auth_secret: :crypto.strong_rand_bytes(64),
   nonce_secret: :crypto.strong_rand_bytes(64)
-
-config :ex_turn,
-  credentials_lifetime: System.get_env("CREDENTIALS_LIFETIME", "86400") |> String.to_integer()
