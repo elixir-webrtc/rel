@@ -82,7 +82,7 @@ defmodule ExTURN.AllocationHandler do
         {:ok, number} ->
           len = byte_size(packet)
           channel_data = <<number::16, len::16, packet::binary>>
-          :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
+          :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
 
         :error ->
           xor_addr = %XORPeerAddress{port: port, address: ip_addr}
@@ -93,7 +93,7 @@ defmodule ExTURN.AllocationHandler do
             |> Message.new([xor_addr, data])
             |> Message.encode()
 
-          :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+          :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       end
 
       state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
@@ -186,7 +186,7 @@ defmodule ExTURN.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       if time_to_expiry == 0 do
         Logger.info("Allocation deleted with LIFETIME=0 refresh request")
@@ -203,7 +203,7 @@ defmodule ExTURN.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
   end
@@ -222,14 +222,14 @@ defmodule ExTURN.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       {:ok, state}
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
   end
@@ -239,7 +239,7 @@ defmodule ExTURN.AllocationHandler do
          {:ok, %Data{value: data}} <- get_data(msg),
          true <- Map.has_key?(state.permissions, ip_addr) do
       # TODO: dont fragment attribute
-      :gen_udp.send(state.socket, ip_addr, port, data)
+      :ok = :gen_udp.send(state.socket, ip_addr, port, data)
       {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
     else
       false ->
@@ -277,7 +277,7 @@ defmodule ExTURN.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       Logger.info("Succesfully bound channel #{number} to address #{:inet.ntoa(ip_addr)}:#{port}")
 
@@ -286,7 +286,7 @@ defmodule ExTURN.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
   end
@@ -296,7 +296,7 @@ defmodule ExTURN.AllocationHandler do
     # TODO: RFC suggests comparing `len` to length in UDP header and discarding if appropriate
     case Map.fetch(state.chann_to_addr, number) do
       {:ok, addr} ->
-        :gen_udp.send(state.socket, addr, data)
+        :ok = :gen_udp.send(state.socket, addr, data)
         {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
 
       :error ->

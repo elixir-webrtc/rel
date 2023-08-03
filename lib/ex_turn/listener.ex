@@ -138,7 +138,7 @@ defmodule ExTURN.Listener do
       ])
       |> Message.encode()
 
-    :gen_udp.send(socket, c_ip, c_port, response)
+    :ok = :gen_udp.send(socket, c_ip, c_port, response)
   end
 
   defp handle_message(
@@ -197,9 +197,9 @@ defmodule ExTURN.Listener do
           {ExTURN.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
         )
 
-      :gen_udp.controlling_process(alloc_socket, alloc_pid)
+      :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
-      :gen_udp.send(socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(socket, c_ip, c_port, response)
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
