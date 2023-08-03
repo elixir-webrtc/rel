@@ -39,7 +39,6 @@ defmodule ExTURN.Listener do
       :gen_udp.open(
         port,
         [
-          {:inet_backend, :socket},
           {:ifaddr, ip},
           {:active, false},
           {:recbuf, 1024 * 1024},
@@ -179,7 +178,6 @@ defmodule ExTURN.Listener do
         :gen_udp.open(
           alloc_port,
           [
-            {:inet_backend, :socket},
             {:ifaddr, alloc_ip},
             {:active, true},
             {:recbuf, 1024 * 1024},
@@ -204,7 +202,7 @@ defmodule ExTURN.Listener do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :gen_udp.send(socket, c_ip, c_port, response)
+        :ok = :gen_udp.send(socket, c_ip, c_port, response)
     end
   end
 
@@ -225,7 +223,7 @@ defmodule ExTURN.Listener do
               "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
             )
 
-            :gen_udp.send(socket, c_ip, c_port, response)
+            :ok = :gen_udp.send(socket, c_ip, c_port, response)
 
           _other ->
             Logger.warning("No allocation and is not a STUN message, silently discarded")

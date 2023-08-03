@@ -21,7 +21,7 @@ defmodule ExTURN.Supervisor do
     children = [
       {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
-      {ExTURN.Listener, [listen_ip, listen_port]},
+      {ExTURN.Listener, [listen_ip, listen_port]}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
