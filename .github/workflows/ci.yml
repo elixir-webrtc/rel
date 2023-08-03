@@ -1,4 +1,5 @@
 name: Lint and test
+
 on: push
 
 jobs:
