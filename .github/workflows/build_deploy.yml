@@ -7,7 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push-image:
@@ -31,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=edge,branch=master
@@ -65,7 +64,7 @@ jobs:
             docker rm -f turn grafana prometheus
             rm -rf $DIR_NAME; mkdir $DIR_NAME
             cd $DIR_NAME
-            git clone -b ${{ github.ref_name }} --depth 1 https://github.com/${{ github.repository }} .
+            git clone -b $TAG --depth 1 https://github.com/${{ github.repository }} .
             echo "DOMAIN=$DOMAIN
             GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
             GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
