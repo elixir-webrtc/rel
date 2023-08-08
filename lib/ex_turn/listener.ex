@@ -32,7 +32,7 @@ defmodule ExTURN.Listener do
   def listen(ip, port) do
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
-    Logger.info("Starting a new listener on #{listener_addr}")
+    Logger.info("Starting a new listener on: #{listener_addr}")
     Logger.metadata(listener: listener_addr)
 
     {:ok, socket} =

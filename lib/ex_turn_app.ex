@@ -2,8 +2,14 @@ defmodule ExTURN.App do
   @moduledoc false
   use Application
 
+  require Logger
+
+  @version Mix.Project.config()[:version]
+
   @impl true
   def start(_, _) do
+    Logger.info("Starting ExTURN v#{@version}")
+
     auth_provider_ip = Application.fetch_env!(:ex_turn, :auth_provider_ip)
     auth_provider_port = Application.fetch_env!(:ex_turn, :auth_provider_port)
     use_tls? = Application.fetch_env!(:ex_turn, :auth_provider_use_tls?)
@@ -31,6 +37,14 @@ defmodule ExTURN.App do
       {Bandit,
        [plug: ExTURN.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts}
     ]
+
+    Logger.info(
+      "Starting Prometheus metrics endpoint at: http://#{:inet.ntoa(metrics_ip)}:#{metrics_port}/metrics"
+    )
+
+    Logger.info(
+      "Starting credentials endpoint at: #{if(use_tls?, do: ~c"https", else: ~c"http")}://#{:inet.ntoa(auth_provider_ip)}:#{auth_provider_port}/"
+    )
 
     Supervisor.start_link(children, strategy: :one_for_one)
   end

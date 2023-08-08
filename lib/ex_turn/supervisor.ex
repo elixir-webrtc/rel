@@ -2,10 +2,6 @@ defmodule ExTURN.Supervisor do
   @moduledoc false
   use Supervisor
 
-  require Logger
-
-  @version Mix.Project.config()[:version]
-
   @spec start_link(any()) :: Supervisor.on_start()
   def start_link(_arg) do
     Supervisor.start_link(__MODULE__, nil, name: __MODULE__)
@@ -13,8 +9,6 @@ defmodule ExTURN.Supervisor do
 
   @impl true
   def init(_arg) do
-    Logger.info("Starting ExTURN v#{@version}")
-
     listen_ip = Application.fetch_env!(:ex_turn, :listen_ip)
     listen_port = Application.fetch_env!(:ex_turn, :listen_port)
 
