@@ -80,7 +80,7 @@ if use_tls? and (is_nil(keyfile) or is_nil(certfile)) do
 end
 
 # IP addresses for TURN
-listen_ip = System.get_env("LISTEN_IP", "0t q.0.0.0") |> ConfigUtils.parse_ip_address()
+listen_ip = System.get_env("LISTEN_IP", "0.0.0.0") |> ConfigUtils.parse_ip_address()
 
 external_listen_ip =
   case System.fetch_env("EXTERNAL_LISTEN_IP") do
