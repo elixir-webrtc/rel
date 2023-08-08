@@ -1,4 +1,4 @@
-defmodule ExTURN.App do
+defmodule Rel.App do
   @moduledoc false
   use Application
 
@@ -8,16 +8,16 @@ defmodule ExTURN.App do
 
   @impl true
   def start(_, _) do
-    Logger.info("Starting ExTURN v#{@version}")
+    Logger.info("Starting Rel v#{@version}")
 
-    auth_provider_ip = Application.fetch_env!(:ex_turn, :auth_provider_ip)
-    auth_provider_port = Application.fetch_env!(:ex_turn, :auth_provider_port)
-    use_tls? = Application.fetch_env!(:ex_turn, :auth_provider_use_tls?)
-    keyfile = Application.fetch_env!(:ex_turn, :keyfile)
-    certfile = Application.fetch_env!(:ex_turn, :certfile)
+    auth_provider_ip = Application.fetch_env!(:rel, :auth_provider_ip)
+    auth_provider_port = Application.fetch_env!(:rel, :auth_provider_port)
+    use_tls? = Application.fetch_env!(:rel, :auth_provider_use_tls?)
+    keyfile = Application.fetch_env!(:rel, :keyfile)
+    certfile = Application.fetch_env!(:rel, :certfile)
 
-    metrics_ip = Application.fetch_env!(:ex_turn, :metrics_ip)
-    metrics_port = Application.fetch_env!(:ex_turn, :metrics_port)
+    metrics_ip = Application.fetch_env!(:rel, :metrics_ip)
+    metrics_port = Application.fetch_env!(:rel, :metrics_port)
 
     scheme_opts =
       if use_tls? do
@@ -31,11 +31,11 @@ defmodule ExTURN.App do
       end
 
     children = [
-      ExTURN.Supervisor,
+      Rel.Supervisor,
       {TelemetryMetricsPrometheus,
        metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]},
       {Bandit,
-       [plug: ExTURN.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts}
+       [plug: Rel.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts}
     ]
 
     Logger.info(

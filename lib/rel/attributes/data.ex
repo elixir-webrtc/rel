@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.Data do
+defmodule Rel.Attribute.Data do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 

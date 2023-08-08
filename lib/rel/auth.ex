@@ -1,16 +1,16 @@
-defmodule ExTURN.Auth do
+defmodule Rel.Auth do
   @moduledoc false
   require Logger
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Attribute.{MessageIntegrity, Nonce, Realm, Username}
 
-  @nonce_lifetime Application.compile_env!(:ex_turn, :nonce_lifetime)
-  @credentials_lifetime Application.compile_env!(:ex_turn, :credentials_lifetime)
+  @nonce_lifetime Application.compile_env!(:rel, :nonce_lifetime)
+  @credentials_lifetime Application.compile_env!(:rel, :credentials_lifetime)
 
   @spec authenticate(Message.t(), username: String.t()) :: {:ok, binary()} | {:error, atom()}
   def authenticate(%Message{} = msg, opts \\ []) do
-    auth_secret = Application.fetch_env!(:ex_turn, :auth_secret)
+    auth_secret = Application.fetch_env!(:rel, :auth_secret)
 
     with :ok <- verify_message_integrity(msg),
          {:ok, username, nonce} <- verify_attrs_presence(msg),
@@ -64,7 +64,7 @@ defmodule ExTURN.Auth do
       |> :base64.decode()
       |> String.split(" ", parts: 2)
 
-    nonce_secret = Application.fetch_env!(:ex_turn, :nonce_secret)
+    nonce_secret = Application.fetch_env!(:rel, :nonce_secret)
 
     is_hash_valid? = hash == :crypto.hash(:sha256, "#{timestamp}:#{nonce_secret}")
 
@@ -77,7 +77,7 @@ defmodule ExTURN.Auth do
   @spec generate_credentials(String.t() | nil) ::
           {username :: String.t(), password :: String.t(), ttl :: non_neg_integer()}
   def generate_credentials(username \\ nil) do
-    auth_secret = Application.fetch_env!(:ex_turn, :auth_secret)
+    auth_secret = Application.fetch_env!(:rel, :auth_secret)
     timestamp = System.os_time(:second) + @credentials_lifetime
 
     username = if is_nil(username), do: "#{timestamp}", else: "#{timestamp}:#{username}"

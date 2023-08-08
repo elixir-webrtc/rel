@@ -28,6 +28,6 @@ RUN apk add --no-cache --update libncursesw openssl libstdc++
 
 WORKDIR /app
 
-COPY --from=build /app/_build/prod/rel/ex_turn ./
+COPY --from=build /app/_build/prod/rel/rel ./
 
-CMD ["bin/ex_turn", "start"]
+CMD ["bin/rel", "start"]

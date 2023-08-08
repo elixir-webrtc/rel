@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.RequestedAddressFamily do
+defmodule Rel.Attribute.RequestedAddressFamily do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 

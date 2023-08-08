@@ -1,4 +1,4 @@
-defmodule ExTURN.Utils do
+defmodule Rel.Utils do
   @moduledoc false
   require Logger
 
@@ -7,10 +7,10 @@ defmodule ExTURN.Utils do
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{ErrorCode, Nonce, Realm}
 
-  alias ExTURN.Attribute.Lifetime
+  alias Rel.Attribute.Lifetime
 
-  @default_lifetime Application.compile_env!(:ex_turn, :default_allocation_lifetime)
-  @max_lifetime Application.compile_env!(:ex_turn, :max_allocation_lifetime)
+  @default_lifetime Application.compile_env!(:rel, :default_allocation_lifetime)
+  @max_lifetime Application.compile_env!(:rel, :max_allocation_lifetime)
 
   @spec get_lifetime(Message.t()) :: {:ok, integer()} | {:error, :invalid_lifetime}
   def get_lifetime(msg) do
@@ -32,7 +32,7 @@ defmodule ExTURN.Utils do
   @spec build_error(atom(), integer(), Method.t()) ::
           {response :: binary(), log_msg :: String.t()}
   def build_error(reason, t_id, method) do
-    domain_name = Application.fetch_env!(:ex_turn, :domain_name)
+    domain_name = Application.fetch_env!(:rel, :domain_name)
     {log_msg, code, with_attrs?} = translate_error(reason)
     error_type = %Type{class: :error_response, method: method}
 
@@ -55,7 +55,7 @@ defmodule ExTURN.Utils do
 
   defp build_nonce() do
     # inspired by https://datatracker.ietf.org/doc/html/rfc7616#section-5.4
-    nonce_secret = Application.fetch_env!(:ex_turn, :nonce_secret)
+    nonce_secret = Application.fetch_env!(:rel, :nonce_secret)
     timestamp = System.monotonic_time(:nanosecond)
     hash = :crypto.hash(:sha256, "#{timestamp}:#{nonce_secret}")
     "#{timestamp} #{hash}" |> :base64.encode()

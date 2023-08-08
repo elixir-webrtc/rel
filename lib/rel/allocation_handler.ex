@@ -1,4 +1,4 @@
-defmodule ExTURN.AllocationHandler do
+defmodule Rel.AllocationHandler do
   @moduledoc false
   use GenServer, restart: :transient
 
@@ -7,15 +7,15 @@ defmodule ExTURN.AllocationHandler do
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
 
-  alias ExTURN.Auth
-  alias ExTURN.Attribute.{ChannelNumber, Data, Lifetime, XORPeerAddress}
-  alias ExTURN.Utils
+  alias Rel.Auth
+  alias Rel.Attribute.{ChannelNumber, Data, Lifetime, XORPeerAddress}
+  alias Rel.Utils
 
   @type five_tuple() ::
           {:inet.ip_address(), :inet.port_number(), :inet.ip_address(), :inet.port_number(), :udp}
 
-  @permission_lifetime Application.compile_env!(:ex_turn, :permission_lifetime)
-  @channel_lifetime Application.compile_env!(:ex_turn, :channel_lifetime)
+  @permission_lifetime Application.compile_env!(:rel, :permission_lifetime)
+  @channel_lifetime Application.compile_env!(:rel, :channel_lifetime)
 
   @spec start_link(term()) :: GenServer.on_start()
   def start_link([five_tuple, alloc_socket | _rest] = args) do

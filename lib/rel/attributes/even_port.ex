@@ -1,16 +1,16 @@
-defmodule ExTURN.Attribute.ReservationToken do
+defmodule Rel.Attribute.EvenPort do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 
   alias ExSTUN.Message.RawAttribute
 
-  @attr_type 0x0022
+  @attr_type 0x0018
 
   @type t() :: %__MODULE__{
-          token: binary()
+          r: boolean()
         }
 
-  @enforce_keys [:token]
+  @enforce_keys [:r]
   defstruct @enforce_keys
 
   @impl true
@@ -21,6 +21,7 @@ defmodule ExTURN.Attribute.ReservationToken do
     decode(raw_attr.value)
   end
 
-  defp decode(<<token::binary-size(8)>>), do: {:ok, %__MODULE__{token: token}}
-  defp decode(_other), do: {:error, :invalid_reservation_token}
+  defp decode(<<1::1, 0::7>>), do: {:ok, %__MODULE__{r: true}}
+  defp decode(<<0::1, 0::7>>), do: {:ok, %__MODULE__{r: false}}
+  defp decode(_other), do: {:error, :invalid_even_port}
 end

@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.Lifetime do
+defmodule Rel.Attribute.Lifetime do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 

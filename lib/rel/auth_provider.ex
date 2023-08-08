@@ -1,4 +1,4 @@
-defmodule ExTURN.AuthProvider do
+defmodule Rel.AuthProvider do
   @moduledoc false
   # REST service described in https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00
   defmodule ConditionalCORSPlug do
@@ -22,7 +22,7 @@ defmodule ExTURN.AuthProvider do
 
   require Logger
 
-  alias ExTURN.Auth
+  alias Rel.Auth
 
   plug(ConditionalCORSPlug)
   plug(:match)
@@ -37,8 +37,8 @@ defmodule ExTURN.AuthProvider do
       username = Map.get(query_params, "username")
       {username, password, ttl} = Auth.generate_credentials(username)
 
-      ip_addr = Application.fetch_env!(:ex_turn, :external_listen_ip)
-      port = Application.fetch_env!(:ex_turn, :listen_port)
+      ip_addr = Application.fetch_env!(:rel, :external_listen_ip)
+      port = Application.fetch_env!(:rel, :listen_port)
 
       response =
         Jason.encode!(%{
