@@ -6,8 +6,6 @@ services:
     restart: on-failure
     network_mode: host
     environment:
-      LISTEN_IP: 0.0.0.0
-      REPLAY_IP: 0.0.0.0
       DOMAIN: "${DOMAIN}"
 
   prometheus:

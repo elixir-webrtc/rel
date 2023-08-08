@@ -20,7 +20,7 @@ defmodule ExTURN.AuthProvider do
       username = Map.get(query_params, "username")
       {username, password, ttl} = Auth.generate_credentials(username)
 
-      ip_addr = Application.fetch_env!(:ex_turn, :external_ip)
+      ip_addr = Application.fetch_env!(:ex_turn, :external_listen_ip)
       port = Application.fetch_env!(:ex_turn, :listen_port)
 
       response =

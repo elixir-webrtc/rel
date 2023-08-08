@@ -59,7 +59,6 @@ defmodule ConfigUtils do
   defp link_local?({0xFE80, _, _, _, _, _, _, _}), do: true
   defp link_local?(_other), do: false
 
-  # not sure if `getifaddrs` can return any-addr
   defp any?({0, 0, 0, 0}), do: true
   defp any?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
   defp any?(_other), do: false
@@ -83,15 +82,22 @@ end
 # IP addresses for TURN
 listen_ip = System.get_env("LISTEN_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address()
 
-external_ip =
-  case System.fetch_env("EXTERNAL_IP") do
-    {:ok, val} ->
-      ConfigUtils.parse_ip_address(val)
+external_listen_ip =
+  case System.fetch_env("EXTERNAL_LISTEN_IP") do
+    {:ok, addr} -> ConfitUtils.parse_ip_address(addr)
+    :error -> ConfigUtils.guess_external_ip(listen_ip)
+  end
 
-    :error ->
-      ip = ConfigUtils.guess_external_ip(listen_ip)
-      Logger.info("EXTERNAL_IP not provided. #{:inet.ntoa(ip)} will be used in its place")
-      ip
+relay_ip =
+  case System.fetch_env("RELAY_IP") do
+    {:ok, addr} -> ConfigUtils.parse_ip_address(addr)
+    :error -> listen_ip
+  end
+
+external_relay_ip =
+  case System.fetch_env("EXTERNAL_LISTEN_IP") do
+    {:ok, addr} -> ConfigUtils.parse_ip_address(addr)
+    :error -> external_listen_ip
   end
 
 # AuthProvider/credentials configuration
@@ -105,9 +111,10 @@ config :ex_turn,
 
 # TURN server configuration
 config :ex_turn,
-  relay_ip: System.get_env("RELAY_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
   listen_ip: listen_ip,
-  external_ip: external_ip,
+  external_listen_ip: external_listen_ip,
+  relay_ip: relay_ip,
+  external_relay_ip: external_relay_ip,
   listen_port: System.get_env("UDP_LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
   domain_name: System.get_env("DOMAIN_NAME", "example.com")
 

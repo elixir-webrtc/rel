@@ -160,14 +160,15 @@ defmodule ExTURN.Listener do
          :ok <- check_even_port(even_port),
          {:ok, alloc_port} <- get_available_port(),
          {:ok, lifetime} <- Utils.get_lifetime(msg) do
-      alloc_ip = Application.fetch_env!(:ex_turn, :relay_ip)
+      relay_ip = Application.fetch_env!(:ex_turn, :relay_ip)
+      external_relay_ip = Application.fetch_env!(:ex_turn, :external_relay_ip)
 
       type = %Type{class: :success_response, method: msg.type.method}
 
       response =
         msg.transaction_id
         |> Message.new(type, [
-          %XORRelayedAddress{port: alloc_port, address: alloc_ip},
+          %XORRelayedAddress{port: alloc_port, address: external_relay_ip},
           %Lifetime{lifetime: lifetime},
           %XORMappedAddress{port: c_port, address: c_ip}
         ])
@@ -178,7 +179,7 @@ defmodule ExTURN.Listener do
         :gen_udp.open(
           alloc_port,
           [
-            {:ifaddr, alloc_ip},
+            {:ifaddr, relay_ip},
             {:active, true},
             {:recbuf, 1024 * 1024},
             :binary
