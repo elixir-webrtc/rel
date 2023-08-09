@@ -3,6 +3,8 @@ import Config
 require Logger
 
 defmodule ConfigUtils do
+  @truthy_values ["true", "t", "1"]
+
   def parse_ip_address(ip) do
     case ip |> to_charlist() |> :inet.parse_address() do
       {:ok, parsed_ip} ->
@@ -27,6 +29,10 @@ defmodule ConfigUtils do
         #{inspect(port)}
         """)
     end
+  end
+
+  def is_truthy?(env_var) do
+    String.downcase(env_var) in @truthy_values
   end
 
   def guess_external_ip(listen_ip)
@@ -71,7 +77,7 @@ defmodule ConfigUtils do
 end
 
 # HTTPS for AuthProvider
-use_tls? = System.get_env("AUTH_PROVIDER_USE_TLS") not in ["0", "false", nil]
+use_tls? = System.get_env("AUTH_PROVIDER_USE_TLS", "false") |> ConfigUtils.is_truthy?()
 keyfile = System.get_env("KEY_FILE_PATH")
 certfile = System.get_env("CERT_FILE_PATH")
 
@@ -105,6 +111,8 @@ config :ex_turn,
   auth_provider_ip:
     System.get_env("AUTH_PROVIDER_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
   auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigUtils.parse_port(),
+  auth_provider_allow_cors?:
+    System.get_env("AUTH_PROVIDER_ALLOW_CORS", "false") |> ConfigUtils.is_truthy?(),
   auth_provider_use_tls?: use_tls?,
   keyfile: keyfile,
   certfile: certfile
