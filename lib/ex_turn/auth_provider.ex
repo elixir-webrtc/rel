@@ -1,13 +1,30 @@
 defmodule ExTURN.AuthProvider do
   @moduledoc false
   # REST service described in https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00
+  defmodule ConditionalCORSPlug do
+    @moduledoc false
+    import Plug.Conn
+
+    def init(_opts), do: []
+
+    def call(conn, _opts) do
+      allow? = Application.fetch_env!(:ex_turn, :auth_provider_allow_cors?)
+
+      if allow? do
+        CORSPlug.call(conn, CORSPlug.init([]))
+      else
+        conn
+      end
+    end
+  end
+
   use Plug.Router
 
   require Logger
 
   alias ExTURN.Auth
 
-  plug(CORSPlug)
+  plug(ConditionalCORSPlug)
   plug(:match)
   plug(:dispatch)
 
