@@ -1,5 +1,9 @@
 # Rel
 
+[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/ex_turn/ci.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/ex_turn/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/ex_turn/build_deploy.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/ex_turn/actions/workflows/build_deploy.yml)
+[![Package](https://ghcr-badge.egpl.dev/elixir-webrtc/ex_turn/latest_tag?trim=major&label=latest)](https://github.com/elixir-webrtc/ex_turn/pkgs/container/ex_turn)
+
 TURN server in pure Elixir.
 
 Aims to implement:
