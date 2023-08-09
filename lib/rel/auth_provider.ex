@@ -8,7 +8,7 @@ defmodule Rel.AuthProvider do
     def init(_opts), do: []
 
     def call(conn, _opts) do
-      allow? = Application.fetch_env!(:ex_turn, :auth_provider_allow_cors?)
+      allow? = Application.fetch_env!(:rel, :auth_provider_allow_cors?)
 
       if allow? do
         CORSPlug.call(conn, CORSPlug.init([]))

@@ -1,8 +1,8 @@
 # Rel
 
-[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/ex_turn/ci.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/ex_turn/actions/workflows/ci.yml)
-[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/ex_turn/build_deploy.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/ex_turn/actions/workflows/build_deploy.yml)
-[![Package](https://ghcr-badge.egpl.dev/elixir-webrtc/ex_turn/latest_tag?trim=major&label=latest)](https://github.com/elixir-webrtc/ex_turn/pkgs/container/ex_turn)
+[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/rel/ci.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/rel/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/rel/build_deploy.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/rel/actions/workflows/build_deploy.yml)
+[![Package](https://ghcr-badge.egpl.dev/elixir-webrtc/rel/latest_tag?trim=major&label=latest)](https://github.com/elixir-webrtc/rel/pkgs/container/rel)
 
 TURN server in pure Elixir.
 
@@ -17,8 +17,10 @@ Supports authentication described in [A REST API For Access To TURN Services](ht
 
 ## Public deployment
 
-If you're in need of TURN server for testing purposes, feel free to use this Rel public deployment at `turn.bigcow.ovh`. In case of any
-irregularities or bugs, please open an issue with description of the problem. DO NOT use this deployment in production, as it's intended to be an aid in developement only.
+If you're in need of TURN server for testing purposes, feel free to use this Rel public deployment at `turn.bigcow.ovh`. 
+
+In case of any irregularities or bugs, please open an issue with description of the problem. 
+DO NOT use this deployment in production, as it's intended to be an aid in developement only.
 
 To obtain a set of credentials, use the built-in credentials mechanism. It does not require any authentication, but the credentials must be refreshed after 3 hours if not used.
 
@@ -95,14 +97,15 @@ DOMAIN_NAME=my-amazing-turn.com
 ### Auth
 
 Auth Provider is an HTTP endpoint that provides credentials required by *A REST API For Access To TURN Services*.
-By default it is available at `http://127.0.0.1:4000/`, but the address and encryption can be configured:
+By default it is available at `http://127.0.0.1:4000/`, but the address, encryption and CORS can be configured:
 
 ```console
 AUTH_PROVIDER_IP=127.0.0.1
 AUTH_PROVIDER_PORT=4000
-AUTH_PROVIDER_USE_TLS=true
+AUTH_PROVIDER_USE_TLS=false
 KEY_FILE_PAHT=./rel.key
 CERT_FILE_PATH./rel.cert
+AUTH_PROVIDER_ALLOW_CORS=false
 ```
 
 ### Metrics
