@@ -9,7 +9,7 @@ defmodule ExTURN.Monitor do
     receive do
       {:DOWN, ^ref, ^pid, _object, _reason} ->
         Logger.info("Closing socket #{inspect(socket)}")
-        :gen_udp.close(socket)
+        :ok = :gen_udp.close(socket)
     end
   end
 end

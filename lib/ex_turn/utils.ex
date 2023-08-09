@@ -9,12 +9,8 @@ defmodule ExTURN.Utils do
 
   alias ExTURN.Attribute.Lifetime
 
-  @domain_name Application.compile_env!(:ex_turn, :domain_name)
-  @nonce_secret Application.compile_env!(:ex_turn, :nonce_secret)
-
-  # TODO: proper lifetime values
-  @default_lifetime 100
-  @max_lifetime 3600
+  @default_lifetime Application.compile_env!(:ex_turn, :default_allocation_lifetime)
+  @max_lifetime Application.compile_env!(:ex_turn, :max_allocation_lifetime)
 
   @spec get_lifetime(Message.t()) :: {:ok, integer()} | {:error, :invalid_lifetime}
   def get_lifetime(msg) do
@@ -36,6 +32,7 @@ defmodule ExTURN.Utils do
   @spec build_error(atom(), integer(), Method.t()) ::
           {response :: binary(), log_msg :: String.t()}
   def build_error(reason, t_id, method) do
+    domain_name = Application.fetch_env!(:ex_turn, :domain_name)
     {log_msg, code, with_attrs?} = translate_error(reason)
     error_type = %Type{class: :error_response, method: method}
 
@@ -43,7 +40,7 @@ defmodule ExTURN.Utils do
 
     attrs =
       if with_attrs? do
-        attrs ++ [%Nonce{value: build_nonce()}, %Realm{value: @domain_name}]
+        attrs ++ [%Nonce{value: build_nonce()}, %Realm{value: domain_name}]
       else
         attrs
       end
@@ -58,8 +55,9 @@ defmodule ExTURN.Utils do
 
   defp build_nonce() do
     # inspired by https://datatracker.ietf.org/doc/html/rfc7616#section-5.4
+    nonce_secret = Application.fetch_env!(:ex_turn, :nonce_secret)
     timestamp = System.monotonic_time(:nanosecond)
-    hash = :crypto.hash(:sha256, "#{timestamp}:#{@nonce_secret}")
+    hash = :crypto.hash(:sha256, "#{timestamp}:#{nonce_secret}")
     "#{timestamp} #{hash}" |> :base64.encode()
   end
 

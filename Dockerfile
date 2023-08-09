@@ -1,4 +1,4 @@
-FROM hexpm/elixir:1.14.4-erlang-25.3.2-alpine-3.18.0 as build
+FROM hexpm/elixir:1.15.4-erlang-26.0.2-alpine-3.18.2 as build
 
 RUN apk add --no-cache --update git
 
@@ -12,7 +12,7 @@ ENV MIX_ENV=prod
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 
-COPY config/config.exs config/${MIX_ENV}.exs config
+COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
 COPY lib lib
@@ -22,11 +22,11 @@ COPY config/runtime.exs config/
 
 RUN mix release
 
-FROM alpine:3.18.0 as app
-
-WORKDIR /app
+FROM alpine:3.18.2 as app
 
 RUN apk add --no-cache --update libncursesw openssl libstdc++
+
+WORKDIR /app
 
 COPY --from=build /app/_build/prod/rel/ex_turn ./
 

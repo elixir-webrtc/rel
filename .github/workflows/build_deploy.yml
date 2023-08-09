@@ -1,0 +1,72 @@
+name: Build and publish Docker image, deploy to the server
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=edge,branch=master
+            
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{  steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push-image
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy the new version
+        uses: JimCronqvist/action-ssh@master
+        env:
+          GF_SECURITY_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
+          GF_SECURITY_ADMIN_USER: ${{ secrets.GF_SECURITY_ADMIN_USER }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          DIR_NAME: ${{ secrets.DIR_NAME }}
+          TAG: ${{ github.ref_name }}
+        with:
+          hosts: ${{ secrets.SSH_HOST }}
+          privateKey: ${{ secrets.PRIV_KEY }}
+          command: |
+            docker rm -f turn grafana prometheus
+            rm -rf $DIR_NAME; mkdir $DIR_NAME
+            cd $DIR_NAME
+            git clone -b $TAG --depth 1 https://github.com/${{ github.repository }} .
+            echo "DOMAIN=$DOMAIN
+            GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
+            GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
+            TAG=${TAG#v}" > .env
+            docker-compose -p turn up -d --remove-orphans

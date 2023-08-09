@@ -1,5 +1,7 @@
 defmodule ExTURN.Listener do
   @moduledoc false
+  use Task, restart: :permanent
+
   require Logger
 
   alias ExTURN.Attribute.{
@@ -21,18 +23,22 @@ defmodule ExTURN.Listener do
 
   @default_alloc_ports MapSet.new(49_152..65_535)
 
+  @spec start_link(term()) :: {:ok, pid()}
+  def start_link(args) do
+    Task.start_link(__MODULE__, :listen, args)
+  end
+
   @spec listen(:inet.ip_address(), :inet.port_number()) :: :ok
   def listen(ip, port) do
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
-    Logger.info("Starting a new listener on #{listener_addr}")
+    Logger.info("Starting a new listener on: #{listener_addr}")
     Logger.metadata(listener: listener_addr)
 
     {:ok, socket} =
       :gen_udp.open(
         port,
         [
-          {:inet_backend, :socket},
           {:ifaddr, ip},
           {:active, false},
           {:recbuf, 1024 * 1024},
@@ -131,7 +137,7 @@ defmodule ExTURN.Listener do
       ])
       |> Message.encode()
 
-    :gen_udp.send(socket, c_ip, c_port, response)
+    :ok = :gen_udp.send(socket, c_ip, c_port, response)
   end
 
   defp handle_message(
@@ -154,14 +160,15 @@ defmodule ExTURN.Listener do
          :ok <- check_even_port(even_port),
          {:ok, alloc_port} <- get_available_port(),
          {:ok, lifetime} <- Utils.get_lifetime(msg) do
-      alloc_ip = Application.fetch_env!(:ex_turn, :public_ip)
+      relay_ip = Application.fetch_env!(:ex_turn, :relay_ip)
+      external_relay_ip = Application.fetch_env!(:ex_turn, :external_relay_ip)
 
       type = %Type{class: :success_response, method: msg.type.method}
 
       response =
         msg.transaction_id
         |> Message.new(type, [
-          %XORRelayedAddress{port: alloc_port, address: alloc_ip},
+          %XORRelayedAddress{port: alloc_port, address: external_relay_ip},
           %Lifetime{lifetime: lifetime},
           %XORMappedAddress{port: c_port, address: c_ip}
         ])
@@ -172,35 +179,31 @@ defmodule ExTURN.Listener do
         :gen_udp.open(
           alloc_port,
           [
-            {:inet_backend, :socket},
-            {:ifaddr, alloc_ip},
+            {:ifaddr, relay_ip},
             {:active, true},
             {:recbuf, 1024 * 1024},
             :binary
           ]
         )
 
-      Logger.info("Succesfully created allocation")
+      Logger.info("Succesfully created allocation, relay port: #{alloc_port}")
 
       {:ok, %Username{value: username}} = Message.get_attribute(msg, Username)
 
-      child_spec = %{
-        id: five_tuple,
-        restart: :transient,
-        start:
-          {ExTURN.AllocationHandler, :start_link,
-           [socket, alloc_socket, five_tuple, username, lifetime]}
-      }
+      {:ok, alloc_pid} =
+        DynamicSupervisor.start_child(
+          ExTURN.AllocationSupervisor,
+          {ExTURN.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
+        )
 
-      {:ok, alloc_pid} = DynamicSupervisor.start_child(ExTURN.AllocationSupervisor, child_spec)
-      :gen_udp.controlling_process(alloc_socket, alloc_pid)
+      :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
-      :gen_udp.send(socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(socket, c_ip, c_port, response)
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :gen_udp.send(socket, c_ip, c_port, response)
+        :ok = :gen_udp.send(socket, c_ip, c_port, response)
     end
   end
 
@@ -217,14 +220,14 @@ defmodule ExTURN.Listener do
           %Message{} ->
             {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
 
-            Logger.warn(
+            Logger.warning(
               "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
             )
 
-            :gen_udp.send(socket, c_ip, c_port, response)
+            :ok = :gen_udp.send(socket, c_ip, c_port, response)
 
           _other ->
-            Logger.warn("No allocation and is not a STUN message, silently discarded")
+            Logger.warning("No allocation and is not a STUN message, silently discarded")
             :ok
         end
     end

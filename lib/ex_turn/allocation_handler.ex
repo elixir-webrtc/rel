@@ -1,6 +1,7 @@
 defmodule ExTURN.AllocationHandler do
   @moduledoc false
-  use GenServer
+  use GenServer, restart: :transient
+
   require Logger
 
   alias ExSTUN.Message
@@ -13,23 +14,16 @@ defmodule ExTURN.AllocationHandler do
   @type five_tuple() ::
           {:inet.ip_address(), :inet.port_number(), :inet.ip_address(), :inet.port_number(), :udp}
 
-  @permission_lifetime 60 * 5
-  @channel_lifetime 60 * 10
+  @permission_lifetime Application.compile_env!(:ex_turn, :permission_lifetime)
+  @channel_lifetime Application.compile_env!(:ex_turn, :channel_lifetime)
 
-  @spec start_link(:inet.socket(), :inet.socket(), five_tuple(), String.t(), non_neg_integer()) ::
-          GenServer.on_start()
-  def start_link(turn_socket, alloc_socket, five_tuple, username, lifetime) do
+  @spec start_link(term()) :: GenServer.on_start()
+  def start_link([five_tuple, alloc_socket | _rest] = args) do
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
 
     GenServer.start_link(
       __MODULE__,
-      [
-        turn_socket: turn_socket,
-        alloc_socket: alloc_socket,
-        five_tuple: five_tuple,
-        username: username,
-        time_to_expiry: lifetime
-      ],
+      args,
       name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_port}}
     )
   end
@@ -40,13 +34,7 @@ defmodule ExTURN.AllocationHandler do
   end
 
   @impl true
-  def init(
-        turn_socket: turn_socket,
-        alloc_socket: socket,
-        five_tuple: five_tuple,
-        username: username,
-        time_to_expiry: time_to_expiry
-      ) do
+  def init([five_tuple, socket, turn_socket, username, time_to_expiry]) do
     {c_ip, c_port, s_ip, s_port, _transport} = five_tuple
     alloc_id = "(#{:inet.ntoa(c_ip)}:#{c_port}, #{:inet.ntoa(s_ip)}:#{s_port}, UDP)"
     Logger.metadata(alloc: alloc_id)
@@ -94,7 +82,7 @@ defmodule ExTURN.AllocationHandler do
         {:ok, number} ->
           len = byte_size(packet)
           channel_data = <<number::16, len::16, packet::binary>>
-          :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
+          :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
 
         :error ->
           xor_addr = %XORPeerAddress{port: port, address: ip_addr}
@@ -105,7 +93,7 @@ defmodule ExTURN.AllocationHandler do
             |> Message.new([xor_addr, data])
             |> Message.encode()
 
-          :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+          :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       end
 
       state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
@@ -151,7 +139,8 @@ defmodule ExTURN.AllocationHandler do
   def handle_info({:check_permission, addr}, state) do
     if System.os_time(:second) >= state.permissions[addr] do
       Logger.info("Permission for #{:inet.ntoa(addr)} expired")
-      {:noreply, pop_in(state.permissions[addr])}
+      {_val, state} = pop_in(state.permissions[addr])
+      {:noreply, state}
     else
       {:noreply, state}
     end
@@ -197,7 +186,7 @@ defmodule ExTURN.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       if time_to_expiry == 0 do
         Logger.info("Allocation deleted with LIFETIME=0 refresh request")
@@ -213,8 +202,8 @@ defmodule ExTURN.AllocationHandler do
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warn(log_msg)
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        Logger.warning(log_msg)
+        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
   end
@@ -233,14 +222,14 @@ defmodule ExTURN.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       {:ok, state}
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warn(log_msg)
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        Logger.warning(log_msg)
+        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
   end
@@ -250,7 +239,7 @@ defmodule ExTURN.AllocationHandler do
          {:ok, %Data{value: data}} <- get_data(msg),
          true <- Map.has_key?(state.permissions, ip_addr) do
       # TODO: dont fragment attribute
-      :gen_udp.send(state.socket, ip_addr, port, data)
+      :ok = :gen_udp.send(state.socket, ip_addr, port, data)
       {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
     else
       false ->
@@ -288,7 +277,7 @@ defmodule ExTURN.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
 
       Logger.info("Succesfully bound channel #{number} to address #{:inet.ntoa(ip_addr)}:#{port}")
 
@@ -296,8 +285,8 @@ defmodule ExTURN.AllocationHandler do
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warn(log_msg)
-        :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        Logger.warning(log_msg)
+        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
         {:ok, state}
     end
   end
@@ -307,7 +296,7 @@ defmodule ExTURN.AllocationHandler do
     # TODO: RFC suggests comparing `len` to length in UDP header and discarding if appropriate
     case Map.fetch(state.chann_to_addr, number) do
       {:ok, addr} ->
-        :gen_udp.send(state.socket, addr, data)
+        :ok = :gen_udp.send(state.socket, addr, data)
         {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
 
       :error ->

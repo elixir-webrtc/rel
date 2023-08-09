@@ -4,26 +4,47 @@ defmodule ExTURN.App do
 
   require Logger
 
+  @version Mix.Project.config()[:version]
+
   @impl true
   def start(_, _) do
-    Logger.info("Starting ExTURN...")
+    Logger.info("Starting ExTURN v#{@version}")
 
-    listen_ip = Application.get_env(:ex_turn, :listen_ip, {0, 0, 0, 0})
-    listen_port = Application.get_env(:ex_turn, :listen_port, 7878)
-    auth_provider_port = Application.get_env(:ex_turn, :auth_provider_port)
+    auth_provider_ip = Application.fetch_env!(:ex_turn, :auth_provider_ip)
+    auth_provider_port = Application.fetch_env!(:ex_turn, :auth_provider_port)
+    use_tls? = Application.fetch_env!(:ex_turn, :auth_provider_use_tls?)
+    keyfile = Application.fetch_env!(:ex_turn, :keyfile)
+    certfile = Application.fetch_env!(:ex_turn, :certfile)
 
-    listener_child_spec = %{
-      id: ExTURN.Listener,
-      start: {Task, :start, [ExTURN.Listener, :listen, [listen_ip, listen_port]]}
-    }
+    metrics_ip = Application.fetch_env!(:ex_turn, :metrics_ip)
+    metrics_port = Application.fetch_env!(:ex_turn, :metrics_port)
+
+    scheme_opts =
+      if use_tls? do
+        [
+          scheme: :https,
+          certfile: certfile,
+          keyfile: keyfile
+        ]
+      else
+        [scheme: :http]
+      end
 
     children = [
-      {TelemetryMetricsPrometheus, metrics: metrics()},
-      {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
-      {Registry, keys: :unique, name: Registry.Allocations},
-      {Bandit, plug: ExTURN.AuthProvider, scheme: :http, ip: listen_ip, port: auth_provider_port},
-      listener_child_spec
+      ExTURN.Supervisor,
+      {TelemetryMetricsPrometheus,
+       metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]},
+      {Bandit,
+       [plug: ExTURN.AuthProvider, ip: auth_provider_ip, port: auth_provider_port] ++ scheme_opts}
     ]
+
+    Logger.info(
+      "Starting Prometheus metrics endpoint at: http://#{:inet.ntoa(metrics_ip)}:#{metrics_port}/metrics"
+    )
+
+    Logger.info(
+      "Starting credentials endpoint at: #{if(use_tls?, do: ~c"https", else: ~c"http")}://#{:inet.ntoa(auth_provider_ip)}:#{auth_provider_port}/"
+    )
 
     Supervisor.start_link(children, strategy: :one_for_one)
   end
