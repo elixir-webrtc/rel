@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.RequestedTransport do
+defmodule Rel.Attribute.RequestedTransport do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 

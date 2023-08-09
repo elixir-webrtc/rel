@@ -1,10 +1,10 @@
-defmodule ExTURN.Listener do
+defmodule Rel.Listener do
   @moduledoc false
   use Task, restart: :permanent
 
   require Logger
 
-  alias ExTURN.Attribute.{
+  alias Rel.Attribute.{
     EvenPort,
     Lifetime,
     RequestedAddressFamily,
@@ -13,9 +13,9 @@ defmodule ExTURN.Listener do
     XORRelayedAddress
   }
 
-  alias ExTURN.AllocationHandler
-  alias ExTURN.Auth
-  alias ExTURN.Utils
+  alias Rel.AllocationHandler
+  alias Rel.Auth
+  alias Rel.Utils
 
   alias ExSTUN.Message
   alias ExSTUN.Message.Type
@@ -46,7 +46,7 @@ defmodule ExTURN.Listener do
         ]
       )
 
-    spawn(ExTURN.Monitor, :start, [self(), socket])
+    spawn(Rel.Monitor, :start, [self(), socket])
 
     recv_loop(socket, %{
       listener_id: listener_addr,
@@ -160,8 +160,8 @@ defmodule ExTURN.Listener do
          :ok <- check_even_port(even_port),
          {:ok, alloc_port} <- get_available_port(),
          {:ok, lifetime} <- Utils.get_lifetime(msg) do
-      relay_ip = Application.fetch_env!(:ex_turn, :relay_ip)
-      external_relay_ip = Application.fetch_env!(:ex_turn, :external_relay_ip)
+      relay_ip = Application.fetch_env!(:rel, :relay_ip)
+      external_relay_ip = Application.fetch_env!(:rel, :external_relay_ip)
 
       type = %Type{class: :success_response, method: msg.type.method}
 
@@ -192,8 +192,8 @@ defmodule ExTURN.Listener do
 
       {:ok, alloc_pid} =
         DynamicSupervisor.start_child(
-          ExTURN.AllocationSupervisor,
-          {ExTURN.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
+          Rel.AllocationSupervisor,
+          {Rel.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
         )
 
       :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)

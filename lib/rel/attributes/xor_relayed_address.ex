@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.XORRelayedAddress do
+defmodule Rel.Attribute.XORRelayedAddress do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 

@@ -107,7 +107,7 @@ external_relay_ip =
   end
 
 # AuthProvider/credentials configuration
-config :ex_turn,
+config :rel,
   auth_provider_ip:
     System.get_env("AUTH_PROVIDER_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
   auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigUtils.parse_port(),
@@ -118,7 +118,7 @@ config :ex_turn,
   certfile: certfile
 
 # TURN server configuration
-config :ex_turn,
+config :rel,
   listen_ip: listen_ip,
   external_listen_ip: external_listen_ip,
   relay_ip: relay_ip,
@@ -127,11 +127,11 @@ config :ex_turn,
   domain_name: System.get_env("DOMAIN_NAME", "example.com")
 
 # Metrics endpoint configuration
-config :ex_turn,
+config :rel,
   metrics_ip: System.get_env("METRICS_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
   metrics_port: System.get_env("METRICS_PORT", "9568") |> ConfigUtils.parse_port()
 
 # Automatically generated secrets
-config :ex_turn,
+config :rel,
   auth_secret: :crypto.strong_rand_bytes(64),
   nonce_secret: :crypto.strong_rand_bytes(64)

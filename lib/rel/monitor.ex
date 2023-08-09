@@ -1,4 +1,4 @@
-defmodule ExTURN.Monitor do
+defmodule Rel.Monitor do
   @moduledoc false
   require Logger
 

@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.XORPeerAddress do
+defmodule Rel.Attribute.XORPeerAddress do
   @moduledoc """
   STUN Message Attribute XOR Peer Address
 

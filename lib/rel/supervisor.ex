@@ -1,4 +1,4 @@
-defmodule ExTURN.Supervisor do
+defmodule Rel.Supervisor do
   @moduledoc false
   use Supervisor
 
@@ -9,13 +9,13 @@ defmodule ExTURN.Supervisor do
 
   @impl true
   def init(_arg) do
-    listen_ip = Application.fetch_env!(:ex_turn, :listen_ip)
-    listen_port = Application.fetch_env!(:ex_turn, :listen_port)
+    listen_ip = Application.fetch_env!(:rel, :listen_ip)
+    listen_port = Application.fetch_env!(:rel, :listen_port)
 
     children = [
-      {DynamicSupervisor, strategy: :one_for_one, name: ExTURN.AllocationSupervisor},
+      {DynamicSupervisor, strategy: :one_for_one, name: Rel.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
-      {ExTURN.Listener, [listen_ip, listen_port]}
+      {Rel.Listener, [listen_ip, listen_port]}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)

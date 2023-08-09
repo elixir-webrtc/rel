@@ -1,7 +1,7 @@
 version: '3.2'
 services:
   turn:
-    image: ghcr.io/elixir-webrtc/ex_turn:${TAG}
+    image: ghcr.io/elixir-webrtc/rel:${TAG}
     container_name: turn
     restart: on-failure
     network_mode: host

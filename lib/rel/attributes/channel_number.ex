@@ -1,4 +1,4 @@
-defmodule ExTURN.Attribute.ChannelNumber do
+defmodule Rel.Attribute.ChannelNumber do
   @moduledoc false
   @behaviour ExSTUN.Message.Attribute
 

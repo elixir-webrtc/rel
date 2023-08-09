@@ -1,6 +1,6 @@
 import Config
 
-config :ex_turn,
+config :rel,
   # 1 day in seconds, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
   credentials_lifetime: 24 * 60 * 60,
   # 10 minutes in seconds

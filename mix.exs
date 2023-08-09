@@ -1,9 +1,9 @@
-defmodule ExTurn.MixProject do
+defmodule Rel.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :ex_turn,
+      app: :rel,
       version: "0.1.0",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
@@ -24,7 +24,7 @@ defmodule ExTurn.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      mod: {ExTURN.App, []},
+      mod: {Rel.App, []},
       extra_applications: [:logger, :crypto]
     ]
   end
