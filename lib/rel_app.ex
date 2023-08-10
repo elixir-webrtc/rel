@@ -54,23 +54,23 @@ defmodule Rel.App do
 
     [
       sum(
-        "turn.allocations.created",
+        "turn.allocations.total.created",
         event_name: [:allocations],
         measurement: :created
       ),
       sum(
-        "turn.allocations.expired",
+        "turn.allocations.total.expired",
         event_name: [:allocations],
         measurement: :expired
       ),
       sum(
-        "turn.listener.client_inbound_traffic.bytes",
+        "turn.listener.client_inbound_traffic.total.bytes",
         event_name: [:listener, :client],
         measurement: :inbound,
         unit: :byte
       ),
       sum(
-        "turn.allocations.peer_inbound_traffic.bytes",
+        "turn.allocations.peer_inbound_traffic.total.bytes",
         event_name: [:allocations, :peer],
         measurement: :inbound,
         unit: :byte

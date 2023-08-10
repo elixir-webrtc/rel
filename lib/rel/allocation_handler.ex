@@ -40,7 +40,7 @@ defmodule Rel.AllocationHandler do
     Logger.metadata(alloc: alloc_id)
     Logger.info("Starting new allocation handler")
 
-    :telemetry.execute([:allocations], %{created: 1})
+    :telemetry.execute([:allocations], %{created: 1, expired: 0})
 
     Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
 
@@ -147,7 +147,7 @@ defmodule Rel.AllocationHandler do
 
   @impl true
   def terminate(reason, _state) do
-    :telemetry.execute([:allocations], %{expired: 1})
+    :telemetry.execute([:allocations], %{created: 0, expired: 1})
     Logger.info("Allocation handler stopped with reason: #{inspect(reason)}")
   end
 

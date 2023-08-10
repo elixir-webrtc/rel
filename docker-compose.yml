@@ -2,11 +2,11 @@ version: '3.8'
 services:
   rel:
     image: ghcr.io/elixir-webrtc/rel:${TAG}
-    container_name: turn
+    container_name: rel
     restart: on-failure
     network_mode: host
     environment:
-      DOMAIN: "${DOMAIN}"
+      DOMAIN_NAME: "${DOMAIN_NAME}"
 
   node-exporter:
     image: prom/node-exporter:v1.6.1
