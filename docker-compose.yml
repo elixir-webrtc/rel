@@ -1,4 +1,4 @@
-version: '3.2'
+version: '3.8'
 services:
   turn:
     image: ghcr.io/elixir-webrtc/rel:${TAG}
@@ -7,6 +7,18 @@ services:
     network_mode: host
     environment:
       DOMAIN: "${DOMAIN}"
+
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: node_exporter
+    restart: on-failure
+    command:
+      - --path.rootfs=/host
+    network_mode: host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      
 
   prometheus:
     image: prom/prometheus:v2.46.0
@@ -22,6 +34,7 @@ services:
       - prometheus_data:/prometheus
     depends_on:
       - turn
+      - node-exporter
 
   grafana:
     image: grafana/grafana:10.0.3
