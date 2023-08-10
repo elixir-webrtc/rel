@@ -88,7 +88,7 @@ RELAY_IP=0.0.0.0
 EXTERNAL_RELAY_IP=167.235.241.140
 ```
 
-Remember to use the `DOMAIN_NAME` variable specific to your deployment. It's used in e.g. `SOFTWARE` STUN attributes.
+Remember to use the `DOMAIN_NAME` variable specific to your deployment. It's used in e.g. `REALM` STUN attributes.
 
 ```console
 DOMAIN_NAME=my-amazing-turn.com
