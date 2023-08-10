@@ -1,6 +1,6 @@
 version: '3.8'
 services:
-  turn:
+  rel:
     image: ghcr.io/elixir-webrtc/rel:${TAG}
     container_name: turn
     restart: on-failure
@@ -18,7 +18,6 @@ services:
     pid: host
     volumes:
       - /:/host:ro,rslave
-      
 
   prometheus:
     image: prom/prometheus:v2.46.0

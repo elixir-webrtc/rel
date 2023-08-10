@@ -54,7 +54,7 @@ defmodule Rel.Listener do
   defp recv_loop(socket) do
     case :gen_udp.recv(socket, 0) do
       {:ok, {client_addr, client_port, packet}} ->
-        :telemetry.execute([:listener, :peer], %{inbound: byte_size(packet)})
+        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
 
         process(socket, client_addr, client_port, packet)
         recv_loop(socket)
