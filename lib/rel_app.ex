@@ -54,12 +54,12 @@ defmodule Rel.App do
 
     [
       sum(
-        "turn.allocations.total.created",
+        "turn.allocations.created.total",
         event_name: [:allocations],
         measurement: :created
       ),
       sum(
-        "turn.allocations.total.expired",
+        "turn.allocations.expired.total",
         event_name: [:allocations],
         measurement: :expired
       ),
