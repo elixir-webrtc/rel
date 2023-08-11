@@ -124,7 +124,7 @@ config :rel,
   relay_ip: relay_ip,
   external_relay_ip: external_relay_ip,
   listen_port: System.get_env("UDP_LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
-  domain_name: System.get_env("DOMAIN_NAME", "example.com")
+  domain: System.get_env("DOMAIN", "example.com")
 
 # Metrics endpoint configuration
 config :rel,
