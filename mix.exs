@@ -33,7 +33,7 @@ defmodule Rel.MixProject do
   defp deps do
     [
       {:toml, "~> 0.7"},
-      {:ex_stun, git: "https://github.com/elixir-webrtc/ex_stun.git"},
+      {:ex_stun, "~> 0.1"},
       {:bandit, "~> 0.7"},
       {:cors_plug, "~> 3.0"},
       {:jason, "~> 1.4"},
