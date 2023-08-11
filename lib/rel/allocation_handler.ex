@@ -40,7 +40,8 @@ defmodule Rel.AllocationHandler do
     Logger.metadata(alloc: alloc_id)
     Logger.info("Starting new allocation handler")
 
-    Process.send_after(self(), :measure_bitrate, 1000)
+    :telemetry.execute([:allocations], %{created: 1, expired: 0})
+
     Process.send_after(self(), :check_expiration, time_to_expiry * 1000)
 
     {:ok,
@@ -54,14 +55,7 @@ defmodule Rel.AllocationHandler do
        permissions: %{},
        chann_to_time: %{},
        chann_to_addr: %{},
-       addr_to_chann: %{},
-
-       # stats
-       # bytes sent by the client
-       out_bytes: 0,
-       # bytes sent to the client
-       in_bytes: 0,
-       last_check: System.monotonic_time(:second)
+       addr_to_chann: %{}
      }}
   end
 
@@ -75,12 +69,15 @@ defmodule Rel.AllocationHandler do
 
   @impl true
   def handle_info({:udp, _socket, ip_addr, port, packet}, state) do
+    len = byte_size(packet)
+
+    :telemetry.execute([:allocations, :peer], %{inbound: len})
+
     if Map.has_key?(state.permissions, ip_addr) do
       {c_ip, c_port, _, _, _} = state.five_tuple
 
       case Map.fetch(state.addr_to_chann, {ip_addr, port}) do
         {:ok, number} ->
-          len = byte_size(packet)
           channel_data = <<number::16, len::16, packet::binary>>
           :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
 
@@ -96,7 +93,6 @@ defmodule Rel.AllocationHandler do
           :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       end
 
-      state = %{state | in_bytes: state.in_bytes + byte_size(packet)}
       {:noreply, state}
     else
       Logger.warning(
@@ -105,24 +101,6 @@ defmodule Rel.AllocationHandler do
 
       {:noreply, state}
     end
-  end
-
-  @impl true
-  def handle_info(:measure_bitrate, state) do
-    now = System.monotonic_time(:second)
-
-    in_bitrate = state.in_bytes / (now - state.last_check)
-    out_bitrate = state.out_bytes / (now - state.last_check)
-
-    :telemetry.execute([:allocation], %{in_bitrate: in_bitrate, out_bitrate: out_bitrate}, %{
-      allocation_id: state.alloc_id
-    })
-
-    state = %{state | in_bytes: 0, out_bytes: 0, last_check: now}
-
-    Process.send_after(self(), :measure_bitrate, 1000)
-
-    {:noreply, state}
   end
 
   @impl true
@@ -169,6 +147,7 @@ defmodule Rel.AllocationHandler do
 
   @impl true
   def terminate(reason, _state) do
+    :telemetry.execute([:allocations], %{created: 0, expired: 1})
     Logger.info("Allocation handler stopped with reason: #{inspect(reason)}")
   end
 
@@ -240,7 +219,7 @@ defmodule Rel.AllocationHandler do
          true <- Map.has_key?(state.permissions, ip_addr) do
       # TODO: dont fragment attribute
       :ok = :gen_udp.send(state.socket, ip_addr, port, data)
-      {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
+      {:ok, state}
     else
       false ->
         {:ok, %XORPeerAddress{address: addr}} = get_xor_peer_address(msg)
@@ -297,7 +276,7 @@ defmodule Rel.AllocationHandler do
     case Map.fetch(state.chann_to_addr, number) do
       {:ok, addr} ->
         :ok = :gen_udp.send(state.socket, addr, data)
-        {:ok, %{state | out_bytes: state.out_bytes + byte_size(data)}}
+        {:ok, state}
 
       :error ->
         {:ok, state}

@@ -53,15 +53,46 @@ defmodule Rel.App do
     import Telemetry.Metrics
 
     [
-      last_value("listener.in_bitrate", tags: [:listener_id]),
-      last_value("allocation.in_bitrate", tags: [:allocation_id]),
-      last_value("allocation.out_bitrate", tags: [:allocation_id]),
+      sum(
+        "turn.allocations.created.total",
+        event_name: [:allocations],
+        measurement: :created
+      ),
+      sum(
+        "turn.allocations.expired.total",
+        event_name: [:allocations],
+        measurement: :expired
+      ),
+      sum(
+        "turn.listener.client_inbound_traffic.total.bytes",
+        event_name: [:listener, :client],
+        measurement: :inbound,
+        unit: :byte
+      ),
+      sum(
+        "turn.allocations.peer_inbound_traffic.total.bytes",
+        event_name: [:allocations, :peer],
+        measurement: :inbound,
+        unit: :byte
+      ),
 
       # telemetry poller
-      last_value("vm.memory.total", unit: :byte),
-      last_value("vm.total_run_queue_lengths.total"),
-      last_value("vm.total_run_queue_lengths.cpu"),
-      last_value("vm.total_run_queue_lengths.io")
+      last_value(
+        "vm.memory.bytes",
+        event_name: [:vm, :memory],
+        measurement: :total,
+        unit: :byte
+      ),
+      last_value(
+        "vm.run_queue.cpu.length",
+        event_name: [:vm, :total_run_queue_lengths],
+        measurement: :cpu
+      ),
+      last_value(
+        "vm.run_queue.io.length",
+        event_name: [:vm, :total_run_queue_lengths],
+        measurement: :io
+      )
     ]
   end
 end

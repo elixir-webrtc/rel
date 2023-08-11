@@ -48,40 +48,16 @@ defmodule Rel.Listener do
 
     spawn(Rel.Monitor, :start, [self(), socket])
 
-    recv_loop(socket, %{
-      listener_id: listener_addr,
-      in_bytes: 0,
-      last_stats_check: System.monotonic_time(:millisecond),
-      next_stats_check: System.monotonic_time(:millisecond) + 1000
-    })
+    recv_loop(socket)
   end
 
-  defp recv_loop(socket, state) do
-    now = System.monotonic_time(:millisecond)
-    rem_timeout = state.next_stats_check - now
-
-    {next_timeout, state} =
-      if rem_timeout <= 0 do
-        duration = now - state.last_stats_check
-        in_bitrate = state.in_bytes / (duration / 1000)
-
-        :telemetry.execute([:listener], %{in_bitrate: in_bitrate}, %{
-          listener_id: state.listener_id
-        })
-
-        next_stats_check = System.monotonic_time(:millisecond) + 1000
-        {1000, %{state | in_bytes: 0, last_stats_check: now, next_stats_check: next_stats_check}}
-      else
-        {rem_timeout, state}
-      end
-
-    case :gen_udp.recv(socket, 0, next_timeout) do
+  defp recv_loop(socket) do
+    case :gen_udp.recv(socket, 0) do
       {:ok, {client_addr, client_port, packet}} ->
-        process(socket, client_addr, client_port, packet)
-        recv_loop(socket, %{state | in_bytes: state.in_bytes + byte_size(packet)})
+        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
 
-      {:error, :timeout} ->
-        recv_loop(socket, state)
+        process(socket, client_addr, client_port, packet)
+        recv_loop(socket)
 
       {:error, reason} ->
         Logger.error("Couldn't receive from the socket, reason: #{inspect(reason)}")

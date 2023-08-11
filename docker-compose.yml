@@ -1,12 +1,23 @@
-version: '3.2'
+version: '3.8'
 services:
-  turn:
+  rel:
     image: ghcr.io/elixir-webrtc/rel:${TAG}
-    container_name: turn
+    container_name: rel
     restart: on-failure
     network_mode: host
     environment:
       DOMAIN: "${DOMAIN}"
+
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: node_exporter
+    restart: on-failure
+    command:
+      - --path.rootfs=/host
+    network_mode: host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
 
   prometheus:
     image: prom/prometheus:v2.46.0
@@ -21,7 +32,8 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
-      - turn
+      - rel
+      - node-exporter
 
   grafana:
     image: grafana/grafana:10.0.3
