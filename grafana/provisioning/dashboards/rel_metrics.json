@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 1,
+  "id": 2,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -46,7 +46,7 @@
               "tooltip": false,
               "viz": false
             },
-            "lineInterpolation": "linear",
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
@@ -76,23 +76,24 @@
               }
             ]
           },
-          "unit": "binbps"
+          "unit": "bits"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 16,
+        "h": 11,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 3,
+      "id": 2,
+      "interval": "5s",
       "options": {
         "legend": {
           "calcs": [
+            "lastNotNull",
             "max",
-            "mean",
-            "lastNotNull"
+            "mean"
           ],
           "displayMode": "table",
           "placement": "bottom",
@@ -110,11 +111,12 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "builder",
-          "expr": "listener_in_bitrate",
+          "exemplar": false,
+          "expr": "rate(turn_listener_client_inbound_traffic_total_bytes[$__interval]) * 8",
           "instant": false,
-          "legendFormat": "Listener IN ({{listener_id}})",
+          "legendFormat": "Clients -> Listener",
           "range": true,
-          "refId": "listener_in"
+          "refId": "client_listener"
         },
         {
           "datasource": {
@@ -122,28 +124,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "builder",
-          "expr": "allocation_in_bitrate",
+          "expr": "rate(turn_allocations_peer_inbound_traffic_total_bytes[$__interval]) * 8",
           "hide": false,
           "instant": false,
-          "legendFormat": "Allocation IN {{allocation_id}}",
+          "legendFormat": "Peers -> Allocation_handlers",
           "range": true,
-          "refId": "allocation_in"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "builder",
-          "expr": "allocation_out_bitrate",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Allocation OUT {{allocation_id}}",
-          "range": true,
-          "refId": "allocation_out"
+          "refId": "peer_allocation"
         }
       ],
-      "title": "Bitrate",
+      "title": "Bitrates",
       "transparent": true,
       "type": "timeseries"
     },
@@ -171,7 +160,7 @@
               "tooltip": false,
               "viz": false
             },
-            "lineInterpolation": "linear",
+            "lineInterpolation": "stepBefore",
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
@@ -206,18 +195,19 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 11
       },
-      "id": 2,
+      "id": 3,
+      "interval": "5",
       "options": {
         "legend": {
           "calcs": [
+            "lastNotNull",
             "max",
-            "mean",
-            "lastNotNull"
+            "mean"
           ],
           "displayMode": "table",
           "placement": "bottom",
@@ -235,11 +225,11 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "builder",
-          "expr": "vm_total_run_queue_lengths_total",
+          "expr": "turn_allocations_created_total",
           "instant": false,
-          "legendFormat": "Total",
+          "legendFormat": "Created Allocations",
           "range": true,
-          "refId": "total"
+          "refId": "created"
         },
         {
           "datasource": {
@@ -247,28 +237,35 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "builder",
-          "expr": "vm_total_run_queue_lengths_cpu",
+          "expr": "turn_allocations_expired_total",
           "hide": false,
           "instant": false,
-          "legendFormat": "CPU",
+          "legendFormat": "Expired Allocations",
           "range": true,
-          "refId": "cpu"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "builder",
-          "expr": "vm_total_run_queue_lengths_io",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "IO",
-          "range": true,
-          "refId": "A"
+          "refId": "expired"
         }
       ],
-      "title": "Total Run Queue Lengths",
+      "title": "Active allocations",
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Active allocations",
+            "binary": {
+              "left": "Created Allocations",
+              "operator": "-",
+              "reducer": "sum",
+              "right": "Expired Allocations"
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [],
+              "reducer": "diff"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
       "transparent": true,
       "type": "timeseries"
     },
@@ -296,7 +293,123 @@
               "tooltip": false,
               "viz": false
             },
-            "lineInterpolation": "linear",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "100 - (rate(node_cpu_seconds_total{job=\"node\",mode=\"idle\"}[$__rate_interval]) * 100)",
+          "instant": false,
+          "legendFormat": "Core {{cpu}}",
+          "range": true,
+          "refId": "cpu"
+        }
+      ],
+      "title": "CPU usage",
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "Core 0",
+                "Core 1",
+                "Core 2",
+                "Core 3",
+                "Core 4",
+                "Core 5",
+                "Core 6",
+                "Core 7"
+              ],
+              "reducer": "sum"
+            }
+          }
+        }
+      ],
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "series",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
@@ -332,19 +445,15 @@
       },
       "gridPos": {
         "h": 10,
-        "w": 24,
+        "w": 12,
         "x": 0,
-        "y": 26
+        "y": 29
       },
-      "id": 1,
+      "id": 4,
       "options": {
         "legend": {
-          "calcs": [
-            "max",
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -360,19 +469,127 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "builder",
-          "expr": "vm_memory_total",
+          "expr": "vm_memory_bytes",
           "instant": false,
-          "legendFormat": "Total",
+          "legendFormat": "Used memory",
           "range": true,
-          "refId": "total"
+          "refId": "memory"
         }
       ],
-      "title": "VM Memory Usage",
+      "title": "VM Memory",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "series",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "stepBefore",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "expr": "vm_run_queue_cpu_length",
+          "instant": false,
+          "legendFormat": "CPU",
+          "range": true,
+          "refId": "cpu"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "expr": "vm_run_queue_io_length",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "IO",
+          "range": true,
+          "refId": "io"
+        }
+      ],
+      "title": "Run queue lengths",
       "transparent": true,
       "type": "timeseries"
     }
   ],
-  "refresh": "",
+  "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
   "tags": [],
@@ -380,13 +597,13 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
-  "title": "TURN Stats",
-  "uid": "aa758579-a261-4899-8aac-adaec7c1ce01",
-  "version": 1,
+  "title": "Rel metrics",
+  "uid": "f89914d6-5064-454e-bfb9-128f69816c36",
+  "version": 6,
   "weekStart": ""
 }
