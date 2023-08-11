@@ -100,8 +100,8 @@ defmodule Rel.Utils do
   defp translate_error(:invalid_lifetime),
     do: {"Failed to decode LIFETIME", 400, false}
 
-  defp translate_error(:invalid_message_integrity),
-    do: {"Failed do decode MESSAGE-INTEGRITY", 400, false}
+  defp translate_error(:no_matching_message_integrity),
+    do: {"Auth failed, invalid MESSAGE-INTEGRITY", 400, false}
 
   defp translate_error(:no_message_integrity),
     do: {"No message integrity attribute", 401, true}
