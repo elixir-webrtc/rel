@@ -20,7 +20,6 @@ defmodule Rel.Auth do
          {:ok, key} <- Message.authenticate_lt(msg, password) do
       {:ok, key}
     else
-      :error -> {:error, :invalid_message_integrity}
       {:error, _reason} = err -> err
     end
   end
