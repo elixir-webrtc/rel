@@ -1,7 +1,7 @@
 # Rel
 
 [![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/rel/ci.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/rel/actions/workflows/ci.yml)
-[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/rel/build_deploy.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/rel/actions/workflows/build_deploy.yml)
+[![Deployment](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/rel/build_deploy.yml?logo=github&label=Deployment)](https://github.com/elixir-webrtc/rel/actions/workflows/build_deploy.yml)
 [![Package](https://ghcr-badge.egpl.dev/elixir-webrtc/rel/latest_tag?trim=major&label=latest)](https://github.com/elixir-webrtc/rel/pkgs/container/rel)
 
 TURN server in pure Elixir.
