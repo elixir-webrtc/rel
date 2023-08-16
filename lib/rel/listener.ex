@@ -35,26 +35,38 @@ defmodule Rel.Listener do
     Logger.info("Starting a new listener on: #{listener_addr}")
     Logger.metadata(listener: listener_addr)
 
-    {:ok, socket} =
-      :gen_udp.open(
-        port,
-        [
-          {:inet_backend, :socket},
-          {:ifaddr, ip},
-          {:active, false},
-          {:recbuf, 1024 * 1024},
-          :binary
-        ]
-      )
+    # {:ok, socket} =
+    #   :gen_udp.open(
+    #     port,
+    #     [
+    #       {:inet_backend, :socket},
+    #       {:ifaddr, ip},
+    #       {:active, false},
+    #       {:recbuf, 1024 * 1024},
+    #       # {:reuseport, true},
+    #       :binary
+    #     ]
+    #   )
+    #
+    # :inet.setopts(socket, [reuseaddr: true, reuseport: true])
 
-    spawn(Rel.Monitor, :start, [self(), socket])
+    {:ok, socket} =
+      :socket.open(:inet, :dgram, :udp)
+
+    :ok = :socket.setopt(socket, {:socket, :reuseport}, true)
+    :ok = :socket.bind(socket, %{family: :inet, addr: ip, port: port})
+
+    # spawn(Rel.Monitor, :start, [self(), socket])
 
     recv_loop(socket)
   end
 
   defp recv_loop(socket) do
-    case :gen_udp.recv(socket, 0) do
-      {:ok, {client_addr, client_port, packet}} ->
+    # case :gen_udp.recv(socket, 0) do
+    case :socket.recvfrom(socket) do
+      {:ok, {%{addr: client_addr, port: client_port}, packet}} ->
+        IO.inspect(self(), label: :RECEIVED)
+        # {:ok, {client_addr, client_port, packet}} ->
         :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
 
         process(socket, client_addr, client_port, packet)
@@ -66,7 +78,8 @@ defmodule Rel.Listener do
   end
 
   defp process(socket, client_ip, client_port, <<two_bits::2, _rest::bitstring>> = packet) do
-    {:ok, {server_ip, server_port}} = :inet.sockname(socket)
+    # {:ok, {server_ip, server_port}} = :inet.sockname(socket)
+    {server_ip, server_port} = {{0, 0, 0, 0}, 3478}
     five_tuple = {client_ip, client_port, server_ip, server_port, :udp}
 
     Logger.metadata(client: "#{:inet.ntoa(client_ip)}:#{client_port}")
@@ -114,7 +127,8 @@ defmodule Rel.Listener do
       ])
       |> Message.encode()
 
-    :ok = :gen_udp.send(socket, c_ip, c_port, response)
+    # :ok = :gen_udp.send(socket, c_ip, c_port, response)
+    :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
   end
 
   defp handle_stun_message(
@@ -176,12 +190,14 @@ defmodule Rel.Listener do
 
       :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
-      :ok = :gen_udp.send(socket, c_ip, c_port, response)
+      # :ok = :gen_udp.send(socket, c_ip, c_port, response)
+      :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :ok = :gen_udp.send(socket, c_ip, c_port, response)
+        # :ok = :gen_udp.send(socket, c_ip, c_port, response)
+        :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
     end
   end
 
@@ -199,7 +215,8 @@ defmodule Rel.Listener do
         )
 
         # TODO: should this be explicit or maybe silent?
-        :ok = :gen_udp.send(socket, c_ip, c_port, response)
+        # :ok = :gen_udp.send(socket, c_ip, c_port, response)
+        :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
     end
   end
 

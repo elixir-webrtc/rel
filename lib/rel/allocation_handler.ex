@@ -100,7 +100,13 @@ defmodule Rel.AllocationHandler do
       case Map.fetch(state.addr_to_chann, {ip_addr, port}) do
         {:ok, number} ->
           channel_data = <<number::16, len::16, packet::binary>>
-          :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
+          # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
+          :ok =
+            :socket.sendto(state.turn_socket, channel_data, %{
+              family: :inet,
+              addr: c_ip,
+              port: c_port
+            })
 
         :error ->
           xor_addr = %XORPeerAddress{port: port, address: ip_addr}
@@ -111,7 +117,9 @@ defmodule Rel.AllocationHandler do
             |> Message.new([xor_addr, data])
             |> Message.encode()
 
-          :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+          # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+          :ok =
+            :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
       end
 
       {:noreply, state}
@@ -186,7 +194,9 @@ defmodule Rel.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok =
+        :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
       if time_to_expiry == 0 do
         Logger.info("Allocation deleted with LIFETIME=0 refresh request")
@@ -203,7 +213,10 @@ defmodule Rel.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :ok =
+          :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
+
         {:ok, state}
     end
   end
@@ -225,14 +238,19 @@ defmodule Rel.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok =
+        :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
       {:ok, state}
     else
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :ok =
+          :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
+
         {:ok, state}
     end
   end
@@ -280,7 +298,9 @@ defmodule Rel.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+      :ok =
+        :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
       Logger.info("Succesfully bound channel #{number} to address #{:inet.ntoa(ip_addr)}:#{port}")
 
@@ -289,7 +309,10 @@ defmodule Rel.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+        :ok =
+          :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
+
         {:ok, state}
     end
   end
