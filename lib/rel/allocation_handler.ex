@@ -51,9 +51,14 @@ defmodule Rel.AllocationHandler do
     )
   end
 
-  @spec process_message(GenServer.server(), term()) :: :ok
-  def process_message(allocation, msg) do
-    GenServer.cast(allocation, {:msg, msg})
+  @spec process_stun_message(GenServer.server(), term()) :: :ok
+  def process_stun_message(allocation, msg) do
+    GenServer.cast(allocation, {:stun_message, msg})
+  end
+
+  @spec process_channel_message(GenServer.server(), term()) :: :ok
+  def process_channel_message(allocation, msg) do
+    GenServer.cast(allocation, {:channel_message, msg})
   end
 
   @impl true
@@ -89,11 +94,27 @@ defmodule Rel.AllocationHandler do
   end
 
   @impl true
-  def handle_cast({:msg, msg}, state) do
-    case handle_msg(msg, state) do
+  def handle_cast({:stun_message, msg}, state) do
+    case handle_message(msg, state) do
       {:ok, state} -> {:noreply, state}
       {:allocation_expired, state} -> {:stop, {:shutdown, :allocation_expired}, state}
     end
+  end
+
+  @impl true
+  def handle_cast(
+        {:channel_message, <<number::16, len::16, data::binary-size(len), _padding::binary>>},
+        state
+      ) do
+    case Map.fetch(state.chann_to_addr, number) do
+      {:ok, addr} ->
+        :ok = :gen_udp.send(state.socket, addr, data)
+
+      :error ->
+        nil
+    end
+
+    {:noreply, state}
   end
 
   @impl true
@@ -180,7 +201,7 @@ defmodule Rel.AllocationHandler do
     Logger.info("Allocation handler stopped with reason: #{inspect(reason)}")
   end
 
-  defp handle_msg(%Message{type: %Type{class: :request, method: :refresh}} = msg, state) do
+  defp handle_message(%Message{type: %Type{class: :request, method: :refresh}} = msg, state) do
     Logger.info("Received 'refresh' request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
@@ -216,7 +237,10 @@ defmodule Rel.AllocationHandler do
     end
   end
 
-  defp handle_msg(%Message{type: %Type{class: :request, method: :create_permission}} = msg, state) do
+  defp handle_message(
+         %Message{type: %Type{class: :request, method: :create_permission}} = msg,
+         state
+       ) do
     Logger.info("Received 'create_permission' request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
@@ -242,7 +266,7 @@ defmodule Rel.AllocationHandler do
     end
   end
 
-  defp handle_msg(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
+  defp handle_message(%Message{type: %Type{class: :indication, method: :send}} = msg, state) do
     with {:ok, %XORPeerAddress{address: ip_addr, port: port}} <- get_xor_peer_address(msg),
          {:ok, %Data{value: data}} <- get_data(msg),
          true <- Map.has_key?(state.permissions, ip_addr) do
@@ -267,7 +291,7 @@ defmodule Rel.AllocationHandler do
     end
   end
 
-  defp handle_msg(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
+  defp handle_message(%Message{type: %Type{class: :request, method: :channel_bind}} = msg, state) do
     Logger.info("Received 'channel_bind' request")
     {c_ip, c_port, _, _, _} = state.five_tuple
 
@@ -299,20 +323,7 @@ defmodule Rel.AllocationHandler do
     end
   end
 
-  defp handle_msg(<<number::16, len::16, data::binary-size(len), _padding::binary>>, state)
-       when number in 0x4000..0x7FFE do
-    # TODO: RFC suggests comparing `len` to length in UDP header and discarding if appropriate
-    case Map.fetch(state.chann_to_addr, number) do
-      {:ok, addr} ->
-        :ok = :gen_udp.send(state.socket, addr, data)
-        {:ok, state}
-
-      :error ->
-        {:ok, state}
-    end
-  end
-
-  defp handle_msg(msg, state) do
+  defp handle_message(msg, state) do
     Logger.warning("Got unexpected TURN message: #{inspect(msg, limit: :infinity)}")
     {:ok, state}
   end
