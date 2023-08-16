@@ -76,7 +76,7 @@ defmodule Rel.Listener do
       0 ->
         case Message.decode(packet) do
           {:ok, msg} ->
-            handle_message(socket, five_tuple, msg)
+            handle_stun_message(socket, five_tuple, msg)
 
           {:error, reason} ->
             Logger.warning(
@@ -85,7 +85,7 @@ defmodule Rel.Listener do
         end
 
       1 ->
-        handle_message(socket, five_tuple, packet)
+        handle_channel_message(five_tuple, packet)
 
       _other ->
         Logger.warning(
@@ -96,7 +96,7 @@ defmodule Rel.Listener do
     Logger.metadata(client: nil)
   end
 
-  defp handle_message(
+  defp handle_stun_message(
          socket,
          five_tuple,
          %Message{type: %Type{class: :request, method: :binding}} = msg
@@ -116,7 +116,7 @@ defmodule Rel.Listener do
     :ok = :gen_udp.send(socket, c_ip, c_port, response)
   end
 
-  defp handle_message(
+  defp handle_stun_message(
          socket,
          five_tuple,
          %Message{type: %Type{class: :request, method: :allocate}} = msg
@@ -183,29 +183,33 @@ defmodule Rel.Listener do
     end
   end
 
-  defp handle_message(socket, five_tuple, msg) do
-    # TODO: are Registry entries removed fast enough?
+  defp handle_stun_message(socket, five_tuple, msg) do
     case fetch_allocation(five_tuple) do
       {:ok, alloc} ->
-        AllocationHandler.process_message(alloc, msg)
+        AllocationHandler.process_stun_message(alloc, msg)
 
       {:error, :allocation_not_found = reason} ->
         {c_ip, c_port, _, _, _} = five_tuple
+        {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
 
-        case msg do
-          %Message{} ->
-            {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warning(
+          "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
+        )
 
-            Logger.warning(
-              "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
-            )
+        # TODO: should this be explicit or maybe silent?
+        :ok = :gen_udp.send(socket, c_ip, c_port, response)
+    end
+  end
 
-            :ok = :gen_udp.send(socket, c_ip, c_port, response)
+  defp handle_channel_message(five_tuple, msg) do
+    # TODO: are Registry entries removed fast enough?
+    case fetch_allocation(five_tuple) do
+      {:ok, alloc} ->
+        AllocationHandler.process_channel_message(alloc, msg)
 
-          _other ->
-            Logger.warning("No allocation and is not a STUN message, silently discarded")
-            :ok
-        end
+      {:error, :allocation_not_found} ->
+        # TODO: should this be silent?
+        Logger.warning("No allocation and is not a STUN message, silently discarded")
     end
   end
 
