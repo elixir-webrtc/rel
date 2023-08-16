@@ -57,7 +57,7 @@ defmodule Rel.AllocationHandler do
   end
 
   @spec process_channel_message(GenServer.server(), term()) :: :ok
-  def process_channel_message(allocation, msg) do
+  def process_channel_message(allocation, msg) when is_binary(msg) do
     GenServer.cast(allocation, {:channel_message, msg})
   end
 

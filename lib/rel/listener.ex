@@ -39,6 +39,7 @@ defmodule Rel.Listener do
       :gen_udp.open(
         port,
         [
+          {:inet_backend, :socket},
           {:ifaddr, ip},
           {:active, false},
           {:recbuf, 1024 * 1024},
@@ -160,6 +161,7 @@ defmodule Rel.Listener do
         :gen_udp.open(
           alloc_port,
           [
+            {:inet_backend, :socket},
             {:ifaddr, relay_ip},
             {:active, true},
             {:recbuf, 1024 * 1024},
@@ -227,7 +229,7 @@ defmodule Rel.Listener do
     end
   end
 
-  defp handle_channel_message(five_tuple, msg) do
+  defp handle_channel_message(five_tuple, <<msg::binary>>) do
     # TODO: are Registry entries removed fast enough?
     case fetch_allocation(five_tuple) do
       {:ok, alloc} ->
