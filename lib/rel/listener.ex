@@ -62,18 +62,18 @@ defmodule Rel.Listener do
 
     # spawn(Rel.Monitor, :start, [self(), socket])
 
-    recv_loop(socket)
+    recv_loop(socket, id)
   end
 
-  defp recv_loop(socket) do
+  defp recv_loop(socket, id) do
     # case :gen_udp.recv(socket, 0) do
     case :socket.recvfrom(socket) do
       {:ok, {%{addr: client_addr, port: client_port}, packet}} ->
         # {:ok, {client_addr, client_port, packet}} ->
-        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
+        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)}, %{listener_id: id})
 
         process(socket, client_addr, client_port, packet)
-        recv_loop(socket)
+        recv_loop(socket, id)
 
       {:error, reason} ->
         Logger.error("Couldn't receive from the socket, reason: #{inspect(reason)}")
