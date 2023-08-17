@@ -71,7 +71,14 @@ defmodule Rel.App do
         "turn.listener.client_inbound_traffic.total.bytes",
         event_name: [:listener, :client],
         measurement: :inbound,
-        unit: :byte
+        unit: :byte,
+        tags: [:listener_id]
+      ),
+      counter(
+        "turn.listener.client_inbound_traffic.packets.total",
+        event_name: [:listener, :client],
+        measurement: :inbound,
+        tags: [:listener_id]
       ),
       sum(
         "turn.allocations.peer_inbound_traffic.total.bytes",
