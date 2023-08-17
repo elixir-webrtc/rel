@@ -31,6 +31,7 @@ defmodule Rel.Listener do
 
   @spec listen(:inet.ip_address(), :inet.port_number(), integer()) :: :ok
   def listen(ip, port, id) do
+    port = port + (id - 1)
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
     Logger.info("Listener #{id} started on: #{listener_addr}")
