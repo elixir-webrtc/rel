@@ -28,11 +28,11 @@ defmodule Rel.Listener do
     Task.start_link(__MODULE__, :listen, args)
   end
 
-  @spec listen(:inet.ip_address(), :inet.port_number()) :: :ok
-  def listen(ip, port) do
+  @spec listen(:inet.ip_address(), :inet.port_number(), integer()) :: :ok
+  def listen(ip, port, id) do
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
-    Logger.info("Starting a new listener on: #{listener_addr}")
+    Logger.info("Listener #{id} started on: #{listener_addr}")
     Logger.metadata(listener: listener_addr)
 
     # {:ok, socket} =
@@ -65,7 +65,6 @@ defmodule Rel.Listener do
     # case :gen_udp.recv(socket, 0) do
     case :socket.recvfrom(socket) do
       {:ok, {%{addr: client_addr, port: client_port}, packet}} ->
-        IO.inspect(self(), label: :RECEIVED)
         # {:ok, {client_addr, client_port, packet}} ->
         :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
 
