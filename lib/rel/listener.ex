@@ -21,6 +21,7 @@ defmodule Rel.Listener do
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
+  @buf_size 1024 * 1024 * 1024
   @default_alloc_ports MapSet.new(49_152..65_535)
 
   @spec start_link(term()) :: {:ok, pid()}
@@ -54,6 +55,9 @@ defmodule Rel.Listener do
       :socket.open(:inet, :dgram, :udp)
 
     :ok = :socket.setopt(socket, {:socket, :reuseport}, true)
+    :ok = :socket.setopt(socket, {:socket, :rcvbuf}, @buf_size)
+    :ok = :socket.setopt(socket, {:socket, :sndbuf}, @buf_size)
+    :ok = :socket.setopt(socket, {:otp, :rcvbuf}, @buf_size)
     :ok = :socket.bind(socket, %{family: :inet, addr: ip, port: port})
 
     # spawn(Rel.Monitor, :start, [self(), socket])
