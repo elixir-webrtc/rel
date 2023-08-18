@@ -21,7 +21,7 @@ defmodule Rel.Listener do
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
-  @buf_size 1024 * 1024 * 1024
+  @buf_size 1024 * 1024
   @default_alloc_ports MapSet.new(49_152..65_535)
 
   @spec start_link(term()) :: {:ok, pid()}
@@ -31,7 +31,7 @@ defmodule Rel.Listener do
 
   @spec listen(:inet.ip_address(), :inet.port_number(), integer()) :: :ok
   def listen(ip, port, id) do
-    port = port + (id - 1)
+    # port = port + (id - 1)
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
     Logger.info("Listener #{id} started on: #{listener_addr}")
@@ -58,7 +58,7 @@ defmodule Rel.Listener do
     :ok = :socket.setopt(socket, {:socket, :reuseport}, true)
     :ok = :socket.setopt(socket, {:socket, :rcvbuf}, @buf_size)
     :ok = :socket.setopt(socket, {:socket, :sndbuf}, @buf_size)
-    :ok = :socket.setopt(socket, {:otp, :rcvbuf}, @buf_size)
+    # :ok = :socket.setopt(socket, {:otp, :rcvbuf}, @buf_size)
     :ok = :socket.bind(socket, %{family: :inet, addr: ip, port: port})
 
     # spawn(Rel.Monitor, :start, [self(), socket])
@@ -192,6 +192,8 @@ defmodule Rel.Listener do
           {Rel.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
         )
 
+      nil = Process.put(five_tuple, alloc_pid)
+
       :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
       # :ok = :gen_udp.send(socket, c_ip, c_port, response)
@@ -206,13 +208,16 @@ defmodule Rel.Listener do
   end
 
   defp handle_stun_message(socket, five_tuple, msg) do
-    case fetch_allocation(five_tuple) do
-      {:ok, alloc} ->
+    # case fetch_allocation(five_tuple) do
+    case Process.get(five_tuple) do
+      # {:ok, alloc} ->
+      alloc when alloc != nil ->
         AllocationHandler.process_stun_message(alloc, msg)
 
-      {:error, :allocation_not_found = reason} ->
+      # {:error, :allocation_not_found = reason} ->
+      nil ->
         {c_ip, c_port, _, _, _} = five_tuple
-        {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        {response, _log_msg} = Utils.build_error(:allocation_not_found, msg.transaction_id, msg.type.method)
 
         Logger.warning(
           "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
