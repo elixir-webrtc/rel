@@ -1,6 +1,6 @@
 defmodule Rel.Listener do
   @moduledoc false
-  use Task, restart: :permanent
+  use GenServer, restart: :permanent
 
   require Logger
 
@@ -25,11 +25,11 @@ defmodule Rel.Listener do
 
   @spec start_link(term()) :: {:ok, pid()}
   def start_link(args) do
-    Task.start_link(__MODULE__, :listen, args)
+    GenServer.start_link(__MODULE__, args)
   end
 
-  @spec listen(:inet.ip_address(), :inet.port_number()) :: :ok
-  def listen(ip, port) do
+  @impl true
+  def init([ip, port]) do
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
     Logger.info("Starting a new listener on: #{listener_addr}")
@@ -40,7 +40,7 @@ defmodule Rel.Listener do
         port,
         [
           {:ifaddr, ip},
-          {:active, false},
+          {:active, true},
           {:recbuf, 1024 * 1024},
           :binary
         ]
@@ -48,20 +48,16 @@ defmodule Rel.Listener do
 
     spawn(Rel.Monitor, :start, [self(), socket])
 
-    recv_loop(socket)
+    {:ok, %{socket: socket}}
   end
 
-  defp recv_loop(socket) do
-    case :gen_udp.recv(socket, 0) do
-      {:ok, {client_addr, client_port, packet}} ->
-        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
+  @impl true
+  def handle_info({:udp, socket, client_addr, client_port, packet}, %{socket: socket} = state) do
+    :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
 
-        process(socket, client_addr, client_port, packet)
-        recv_loop(socket)
+    process(socket, client_addr, client_port, packet)
 
-      {:error, reason} ->
-        Logger.error("Couldn't receive from the socket, reason: #{inspect(reason)}")
-    end
+    {:noreply, state}
   end
 
   defp process(socket, client_ip, client_port, <<two_bits::2, _rest::bitstring>> = packet) do
