@@ -124,8 +124,13 @@ defmodule Rel.Listener do
     Logger.info("Received new allocation request")
     {c_ip, c_port, _, _, _} = five_tuple
 
+    handle_error = fn reason, socket, c_ip, c_port, msg ->
+      {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+      Logger.warning(log_msg)
+      :ok = :gen_udp.send(socket, c_ip, c_port, response)
+    end
+
     with {:ok, key} <- Auth.authenticate(msg),
-         :ok <- is_not_retransmited?(msg, key, []),
          :ok <- refute_allocation(five_tuple),
          :ok <- check_requested_transport(msg),
          :ok <- check_dont_fragment(msg),
@@ -169,24 +174,39 @@ defmodule Rel.Listener do
       {:ok, alloc_pid} =
         DynamicSupervisor.start_child(
           Rel.AllocationSupervisor,
-          {Rel.AllocationHandler, [five_tuple, alloc_socket, socket, username, lifetime]}
+          {Rel.AllocationHandler,
+           [
+             five_tuple: five_tuple,
+             alloc_socket: alloc_socket,
+             turn_socket: socket,
+             username: username,
+             time_to_expiry: lifetime,
+             t_id: msg.transaction_id,
+             response: response
+           ]}
         )
 
       :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
       :ok = :gen_udp.send(socket, c_ip, c_port, response)
     else
+      {:error, :allocation_exists, %{t_id: origin_t_id, response: origin_response}}
+      when origin_t_id == msg.transaction_id ->
+        Logger.info("Allocation request retransmission")
+        :ok = :gen_udp.send(socket, c_ip, c_port, origin_response)
+
+      {:error, :allocation_exists, _alloc_origin_state} ->
+        handle_error.(:allocation_exists, socket, c_ip, c_port, msg)
+
       {:error, reason} ->
-        {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
-        Logger.warning(log_msg)
-        :ok = :gen_udp.send(socket, c_ip, c_port, response)
+        handle_error.(reason, socket, c_ip, c_port, msg)
     end
   end
 
   defp handle_message(socket, five_tuple, msg) do
     # TODO: are Registry entries removed fast enough?
     case fetch_allocation(five_tuple) do
-      {:ok, alloc} ->
+      {:ok, alloc, _alloc_origin_state} ->
         AllocationHandler.process_message(alloc, msg)
 
       {:error, :allocation_not_found = reason} ->
@@ -209,14 +229,9 @@ defmodule Rel.Listener do
     end
   end
 
-  defp is_not_retransmited?(_msg, _key, _allocation_requests) do
-    # TODO: handle retransmitions, RFC 5766 6.2
-    :ok
-  end
-
   defp fetch_allocation(five_tuple) do
     case Registry.lookup(Registry.Allocations, five_tuple) do
-      [{allocation, _value}] -> {:ok, allocation}
+      [{alloc, alloc_origin_state}] -> {:ok, alloc, alloc_origin_state}
       [] -> {:error, :allocation_not_found}
     end
   end
@@ -224,7 +239,7 @@ defmodule Rel.Listener do
   defp refute_allocation(five_tuple) do
     case fetch_allocation(five_tuple) do
       {:error, :allocation_not_found} -> :ok
-      {:ok, _alloc} -> {:error, :allocation_exists}
+      {:ok, _alloc, alloc_origin_state} -> {:error, :allocation_exists, alloc_origin_state}
     end
   end
 
@@ -295,6 +310,7 @@ defmodule Rel.Listener do
     used_alloc_ports =
       Registry.Allocations
       |> Registry.select([{{:_, :_, :"$3"}, [], [:"$3"]}])
+      |> Enum.map(fn alloc_origin_state -> Map.fetch!(alloc_origin_state, :alloc_port) end)
       |> MapSet.new()
 
     available_alloc_ports = MapSet.difference(@default_alloc_ports, used_alloc_ports)

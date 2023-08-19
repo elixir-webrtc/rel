@@ -14,17 +14,40 @@ defmodule Rel.AllocationHandler do
   @type five_tuple() ::
           {:inet.ip_address(), :inet.port_number(), :inet.ip_address(), :inet.port_number(), :udp}
 
+  @typedoc """
+  Allocation handler init args.
+
+  * `t_id` is the origin allocation request transaction id
+  * `response` is the origin response for the origin alloaction request
+  """
+  @type alloc_args() :: [
+          five_tuple: five_tuple(),
+          alloc_socket: :gen_udp.socket(),
+          turn_socket: :gen_udp.socket(),
+          username: binary(),
+          time_to_expiry: integer(),
+          t_id: integer(),
+          response: binary()
+        ]
+
   @permission_lifetime Application.compile_env!(:rel, :permission_lifetime)
   @channel_lifetime Application.compile_env!(:rel, :channel_lifetime)
 
-  @spec start_link(term()) :: GenServer.on_start()
-  def start_link([five_tuple, alloc_socket | _rest] = args) do
+  @spec start_link(alloc_args()) :: GenServer.on_start()
+  def start_link(args) do
+    alloc_socket = Keyword.fetch!(args, :alloc_socket)
+    five_tuple = Keyword.fetch!(args, :five_tuple)
+    t_id = Keyword.fetch!(args, :t_id)
+    response = Keyword.fetch!(args, :response)
+
     {:ok, {_alloc_ip, alloc_port}} = :inet.sockname(alloc_socket)
+
+    alloc_origin_state = %{alloc_port: alloc_port, t_id: t_id, response: response}
 
     GenServer.start_link(
       __MODULE__,
       args,
-      name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_port}}
+      name: {:via, Registry, {Registry.Allocations, five_tuple, alloc_origin_state}}
     )
   end
 
@@ -34,7 +57,13 @@ defmodule Rel.AllocationHandler do
   end
 
   @impl true
-  def init([five_tuple, socket, turn_socket, username, time_to_expiry]) do
+  def init(args) do
+    five_tuple = Keyword.fetch!(args, :five_tuple)
+    alloc_socket = Keyword.fetch!(args, :alloc_socket)
+    turn_socket = Keyword.fetch!(args, :turn_socket)
+    username = Keyword.fetch!(args, :username)
+    time_to_expiry = Keyword.fetch!(args, :time_to_expiry)
+
     {c_ip, c_port, s_ip, s_port, _transport} = five_tuple
     alloc_id = "(#{:inet.ntoa(c_ip)}:#{c_port}, #{:inet.ntoa(s_ip)}:#{s_port}, UDP)"
     Logger.metadata(alloc: alloc_id)
@@ -48,7 +77,7 @@ defmodule Rel.AllocationHandler do
      %{
        alloc_id: alloc_id,
        turn_socket: turn_socket,
-       socket: socket,
+       socket: alloc_socket,
        five_tuple: five_tuple,
        username: username,
        expiry_timestamp: System.os_time(:second) + time_to_expiry,
