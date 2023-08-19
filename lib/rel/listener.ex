@@ -42,6 +42,7 @@ defmodule Rel.Listener do
           {:ifaddr, ip},
           {:active, true},
           {:recbuf, 1024 * 1024},
+          {:raw, 1, 15, <<10::32-native>>},
           :binary
         ]
       )

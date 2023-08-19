@@ -15,7 +15,8 @@ defmodule Rel.Supervisor do
     children = [
       {DynamicSupervisor, strategy: :one_for_one, name: Rel.AllocationSupervisor},
       {Registry, keys: :unique, name: Registry.Allocations},
-      {Rel.Listener, [listen_ip, listen_port]}
+      Supervisor.child_spec({Rel.Listener, [listen_ip, listen_port]}, id: :l2),
+      Supervisor.child_spec({Rel.Listener, [listen_ip, listen_port]}, id: :l1)
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
