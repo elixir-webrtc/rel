@@ -88,10 +88,16 @@ RELAY_IP=0.0.0.0
 EXTERNAL_RELAY_IP=167.235.241.140
 ```
 
-Remember to use the `DOMAIN` variable specific to your deployment. It's used in e.g. `REALM` STUN attributes.
+Remember to use the `REALM` variable specific to your deployment. It's used in `REALM` STUN attributes. See
+[this section of RFC 2617](https://datatracker.ietf.org/doc/html/rfc2617#section-3.2.1) to learn about appropriate values for `REALM` attribute.
 
 ```console
-DOMAIN=my-amazing-turn.com
+REALM=my-amazing-turn.com
+```
+
+You can configure the number of running `listener` processes. By default, it is equal to number of running Erlang VM schedulers:
+```console
+LISTENER_COUNT=8
 ```
 
 ### Auth
@@ -100,12 +106,12 @@ Auth Provider is an HTTP endpoint that provides credentials required by *A REST 
 By default it is available at `http://127.0.0.1:4000/`, but the address, encryption and CORS can be configured:
 
 ```console
-AUTH_PROVIDER_IP=127.0.0.1
-AUTH_PROVIDER_PORT=4000
-AUTH_PROVIDER_USE_TLS=false
-KEY_FILE_PAHT=./rel.key
-CERT_FILE_PATH./rel.cert
-AUTH_PROVIDER_ALLOW_CORS=false
+AUTH_IP=127.0.0.1
+AUTH_PORT=4000
+AUTH_USE_TLS=false
+AUTH_KEYFILE=./rel.key
+AUTH_CERTFILE./rel.cert
+AUTH_ALLOW_CORS=false
 ```
 
 ### Metrics

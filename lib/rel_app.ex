@@ -10,18 +10,18 @@ defmodule Rel.App do
   def start(_, _) do
     Logger.info("Starting Rel v#{@version}")
 
-    auth_ip = Application.fetch_env!(:rel, :auth_provider_ip)
-    auth_port = Application.fetch_env!(:rel, :auth_provider_port)
-    use_tls? = Application.fetch_env!(:rel, :auth_provider_use_tls?)
-    keyfile = Application.fetch_env!(:rel, :keyfile)
-    certfile = Application.fetch_env!(:rel, :certfile)
+    auth_ip = Application.fetch_env!(:rel, :auth_ip)
+    auth_port = Application.fetch_env!(:rel, :auth_port)
+    auth_use_tls? = Application.fetch_env!(:rel, :auth_use_tls?)
+    auth_keyfile = Application.fetch_env!(:rel, :auth_keyfile)
+    auth_certfile = Application.fetch_env!(:rel, :auth_certfile)
 
     auth_opts =
-      if use_tls? do
+      if auth_use_tls? do
         [
           scheme: :https,
-          certfile: certfile,
-          keyfile: keyfile
+          certfile: auth_certfile,
+          keyfile: auth_keyfile
         ]
       else
         [scheme: :http]
@@ -46,7 +46,7 @@ defmodule Rel.App do
     metrics_endpoint = "http://#{:inet.ntoa(metrics_ip)}:#{metrics_port}/metrics"
     Logger.info("Starting Prometheus metrics endpoint at: #{metrics_endpoint}")
 
-    scheme = if(use_tls?, do: "https", else: "http")
+    scheme = if(auth_use_tls?, do: "https", else: "http")
     auth_endpoint = "#{scheme}://#{:inet.ntoa(auth_ip)}:#{auth_port}/"
     Logger.info("Starting credentials endpoint at: #{auth_endpoint}")
 

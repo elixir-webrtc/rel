@@ -6,7 +6,7 @@ services:
     restart: on-failure
     network_mode: host
     environment:
-      DOMAIN: "${DOMAIN}"
+      REALM: "${REALM}"
 
   node-exporter:
     image: prom/node-exporter:v1.6.1

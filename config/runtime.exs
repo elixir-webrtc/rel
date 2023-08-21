@@ -77,11 +77,11 @@ defmodule ConfigUtils do
 end
 
 # HTTPS for AuthProvider
-use_tls? = System.get_env("AUTH_PROVIDER_USE_TLS", "false") |> ConfigUtils.is_truthy?()
-keyfile = System.get_env("KEY_FILE_PATH")
-certfile = System.get_env("CERT_FILE_PATH")
+auth_use_tls? = System.get_env("AUTH_USE_TLS", "false") |> ConfigUtils.is_truthy?()
+auth_keyfile = System.get_env("AUTH_KEYFILE")
+auth_certfile = System.get_env("AUTH_CERTFILE")
 
-if use_tls? and (is_nil(keyfile) or is_nil(certfile)) do
+if auth_use_tls? and (is_nil(auth_keyfile) or is_nil(auth_certfile)) do
   raise "Both KEY_FILE_PATH and CERT_FILE_PATH must be set is TLS is used"
 end
 
@@ -101,7 +101,7 @@ relay_ip =
   end
 
 external_relay_ip =
-  case System.fetch_env("EXTERNAL_LISTEN_IP") do
+  case System.fetch_env("EXTERNAL_RELAY_IP") do
     {:ok, addr} -> ConfigUtils.parse_ip_address(addr)
     :error -> external_listen_ip
   end
@@ -119,14 +119,12 @@ listener_count =
 
 # AuthProvider/credentials configuration
 config :rel,
-  auth_provider_ip:
-    System.get_env("AUTH_PROVIDER_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
-  auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigUtils.parse_port(),
-  auth_provider_allow_cors?:
-    System.get_env("AUTH_PROVIDER_ALLOW_CORS", "false") |> ConfigUtils.is_truthy?(),
-  auth_provider_use_tls?: use_tls?,
-  keyfile: keyfile,
-  certfile: certfile
+  auth_ip: System.get_env("AUTH_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
+  auth_port: System.get_env("AUTH_PORT", "4000") |> ConfigUtils.parse_port(),
+  auth_allow_cors?: System.get_env("AUTH_ALLOW_CORS", "false") |> ConfigUtils.is_truthy?(),
+  auth_use_tls?: auth_use_tls?,
+  auth_keyfile: auth_keyfile,
+  auth_certfile: auth_certfile
 
 # TURN server configuration
 config :rel,
@@ -135,7 +133,7 @@ config :rel,
   relay_ip: relay_ip,
   external_relay_ip: external_relay_ip,
   listen_port: System.get_env("LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
-  domain: System.get_env("DOMAIN", "example.com")
+  realm: System.get_env("REALM", "example.com")
 
 # Metrics endpoint configuration
 config :rel,
