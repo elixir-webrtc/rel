@@ -211,7 +211,7 @@ defmodule Rel.Listener do
   defp handle_stun_message(socket, five_tuple, msg) do
     case fetch_allocation(five_tuple) do
       {:ok, alloc, _alloc_origin_state} ->
-        AllocationHandler.process_message(alloc, msg)
+        AllocationHandler.process_stun_message(alloc, msg)
 
       {:error, :allocation_not_found = reason} ->
         {c_ip, c_port, _, _, _} = five_tuple
@@ -229,7 +229,7 @@ defmodule Rel.Listener do
   defp handle_channel_message(five_tuple, <<msg::binary>>) do
     # TODO: are Registry entries removed fast enough?
     case fetch_allocation(five_tuple) do
-      {:ok, alloc} ->
+      {:ok, alloc, _alloc_origin_state} ->
         AllocationHandler.process_channel_message(alloc, msg)
 
       {:error, :allocation_not_found} ->
