@@ -21,6 +21,7 @@ defmodule Rel.Listener do
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
+  @buf_size 2 * 1024
   @default_alloc_ports MapSet.new(49_152..65_535)
 
   @spec start_link(term()) :: {:ok, pid()}
@@ -28,36 +29,33 @@ defmodule Rel.Listener do
     Task.start_link(__MODULE__, :listen, args)
   end
 
-  @spec listen(:inet.ip_address(), :inet.port_number()) :: :ok
-  def listen(ip, port) do
+  @spec listen(:inet.ip_address(), :inet.port_number(), integer()) :: :ok
+  def listen(ip, port, id) do
     listener_addr = "#{:inet.ntoa(ip)}:#{port}/UDP"
 
-    Logger.info("Starting a new listener on: #{listener_addr}")
+    Logger.info("Listener #{id} started on: #{listener_addr}")
     Logger.metadata(listener: listener_addr)
 
     {:ok, socket} =
-      :gen_udp.open(
-        port,
-        [
-          {:ifaddr, ip},
-          {:active, false},
-          {:recbuf, 1024 * 1024},
-          :binary
-        ]
-      )
+      :socket.open(:inet, :dgram, :udp)
+
+    :ok = :socket.setopt(socket, {:socket, :reuseport}, true)
+    :ok = :socket.setopt(socket, {:socket, :rcvbuf}, @buf_size)
+    :ok = :socket.setopt(socket, {:socket, :sndbuf}, @buf_size)
+    :ok = :socket.bind(socket, %{family: :inet, addr: ip, port: port})
 
     spawn(Rel.Monitor, :start, [self(), socket])
 
-    recv_loop(socket)
+    recv_loop(socket, id)
   end
 
-  defp recv_loop(socket) do
-    case :gen_udp.recv(socket, 0) do
-      {:ok, {client_addr, client_port, packet}} ->
-        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)})
+  defp recv_loop(socket, id) do
+    case :socket.recvfrom(socket) do
+      {:ok, {%{addr: client_addr, port: client_port}, packet}} ->
+        :telemetry.execute([:listener, :client], %{inbound: byte_size(packet)}, %{listener_id: id})
 
         process(socket, client_addr, client_port, packet)
-        recv_loop(socket)
+        recv_loop(socket, id)
 
       {:error, reason} ->
         Logger.error("Couldn't receive from the socket, reason: #{inspect(reason)}")
@@ -65,7 +63,7 @@ defmodule Rel.Listener do
   end
 
   defp process(socket, client_ip, client_port, <<two_bits::2, _rest::bitstring>> = packet) do
-    {:ok, {server_ip, server_port}} = :inet.sockname(socket)
+    {server_ip, server_port} = {{0, 0, 0, 0}, 3478}
     five_tuple = {client_ip, client_port, server_ip, server_port, :udp}
 
     Logger.metadata(client: "#{:inet.ntoa(client_ip)}:#{client_port}")
@@ -76,7 +74,7 @@ defmodule Rel.Listener do
       0 ->
         case Message.decode(packet) do
           {:ok, msg} ->
-            handle_message(socket, five_tuple, msg)
+            handle_stun_message(socket, five_tuple, msg)
 
           {:error, reason} ->
             Logger.warning(
@@ -85,7 +83,7 @@ defmodule Rel.Listener do
         end
 
       1 ->
-        handle_message(socket, five_tuple, packet)
+        handle_channel_message(five_tuple, packet)
 
       _other ->
         Logger.warning(
@@ -96,7 +94,7 @@ defmodule Rel.Listener do
     Logger.metadata(client: nil)
   end
 
-  defp handle_message(
+  defp handle_stun_message(
          socket,
          five_tuple,
          %Message{type: %Type{class: :request, method: :binding}} = msg
@@ -113,10 +111,10 @@ defmodule Rel.Listener do
       ])
       |> Message.encode()
 
-    :ok = :gen_udp.send(socket, c_ip, c_port, response)
+    :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
   end
 
-  defp handle_message(
+  defp handle_stun_message(
          socket,
          five_tuple,
          %Message{type: %Type{class: :request, method: :allocate}} = msg
@@ -127,7 +125,7 @@ defmodule Rel.Listener do
     handle_error = fn reason, socket, c_ip, c_port, msg ->
       {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
       Logger.warning(log_msg)
-      :ok = :gen_udp.send(socket, c_ip, c_port, response)
+      :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
     end
 
     with {:ok, key} <- Auth.authenticate(msg),
@@ -160,6 +158,7 @@ defmodule Rel.Listener do
         :gen_udp.open(
           alloc_port,
           [
+            {:inet_backend, :socket},
             {:ifaddr, relay_ip},
             {:active, true},
             {:recbuf, 1024 * 1024},
@@ -188,7 +187,7 @@ defmodule Rel.Listener do
 
       :ok = :gen_udp.controlling_process(alloc_socket, alloc_pid)
 
-      :ok = :gen_udp.send(socket, c_ip, c_port, response)
+      :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
     else
       {:error, :allocation_exists, %{t_id: origin_t_id, response: origin_response}}
       when origin_t_id == msg.transaction_id ->
@@ -209,29 +208,33 @@ defmodule Rel.Listener do
     end
   end
 
-  defp handle_message(socket, five_tuple, msg) do
-    # TODO: are Registry entries removed fast enough?
+  defp handle_stun_message(socket, five_tuple, msg) do
     case fetch_allocation(five_tuple) do
       {:ok, alloc, _alloc_origin_state} ->
-        AllocationHandler.process_message(alloc, msg)
+        AllocationHandler.process_stun_message(alloc, msg)
 
       {:error, :allocation_not_found = reason} ->
         {c_ip, c_port, _, _, _} = five_tuple
+        {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
 
-        case msg do
-          %Message{} ->
-            {response, _log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
+        Logger.warning(
+          "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
+        )
 
-            Logger.warning(
-              "No allocation and this is not an 'allocate'/'binding' request, message: #{inspect(msg)}"
-            )
+        # TODO: should this be explicit or maybe silent?
+        :ok = :socket.sendto(socket, response, %{family: :inet, addr: c_ip, port: c_port})
+    end
+  end
 
-            :ok = :gen_udp.send(socket, c_ip, c_port, response)
+  defp handle_channel_message(five_tuple, <<msg::binary>>) do
+    # TODO: are Registry entries removed fast enough?
+    case fetch_allocation(five_tuple) do
+      {:ok, alloc, _alloc_origin_state} ->
+        AllocationHandler.process_channel_message(alloc, msg)
 
-          _other ->
-            Logger.warning("No allocation and is not a STUN message, silently discarded")
-            :ok
-        end
+      {:error, :allocation_not_found} ->
+        # TODO: should this be silent?
+        Logger.warning("No allocation and is not a STUN message, silently discarded")
     end
   end
 

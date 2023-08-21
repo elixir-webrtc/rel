@@ -106,6 +106,17 @@ external_relay_ip =
     :error -> external_listen_ip
   end
 
+listener_count =
+  case System.fetch_env("LISTENER_COUNT") do
+    {:ok, count} ->
+      count = String.to_integer(count)
+      if count <= 0, do: raise("LISTENER_COUNT must be greater than 0")
+      count
+
+    :error ->
+      System.schedulers_online()
+  end
+
 # AuthProvider/credentials configuration
 config :rel,
   auth_provider_ip:
@@ -135,3 +146,7 @@ config :rel,
 config :rel,
   auth_secret: :crypto.strong_rand_bytes(64),
   nonce_secret: :crypto.strong_rand_bytes(64)
+
+# Other
+config :rel,
+  listener_count: listener_count

@@ -1,4 +1,4 @@
-defmodule Rel.Supervisor do
+defmodule Rel.ListenerSupervisor do
   @moduledoc false
   use Supervisor
 
@@ -11,13 +11,15 @@ defmodule Rel.Supervisor do
   def init(_arg) do
     listen_ip = Application.fetch_env!(:rel, :listen_ip)
     listen_port = Application.fetch_env!(:rel, :listen_port)
+    listener_count = Application.fetch_env!(:rel, :listener_count)
 
-    children = [
-      {DynamicSupervisor, strategy: :one_for_one, name: Rel.AllocationSupervisor},
-      {Registry, keys: :unique, name: Registry.Allocations},
-      {Rel.Listener, [listen_ip, listen_port]}
-    ]
+    children =
+      for id <- 1..listener_count do
+        Supervisor.child_spec({Rel.Listener, [listen_ip, listen_port, id]},
+          id: "listener_#{id}"
+        )
+      end
 
-    Supervisor.init(children, strategy: :one_for_all)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 end
