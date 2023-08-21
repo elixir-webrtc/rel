@@ -18,7 +18,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -114,9 +113,22 @@
           "exemplar": false,
           "expr": "rate(turn_listener_client_inbound_traffic_total_bytes[$__interval]) * 8",
           "instant": false,
-          "legendFormat": "Clients -> Listener",
+          "legendFormat": "Clients -> Listener {{ listener_id }}",
           "range": true,
           "refId": "client_listener"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "expr": "sum(rate(turn_listener_client_inbound_traffic_total_bytes[$__interval])) * 8",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Clients -> Listener (Total)",
+          "range": true,
+          "refId": "client_listener_total"
         },
         {
           "datasource": {
@@ -133,6 +145,130 @@
         }
       ],
       "title": "Bitrates",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "series",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "expr": "rate(turn_listener_client_inbound_traffic_packets_total[$__interval])",
+          "instant": false,
+          "legendFormat": "Clients -> Listener {{listener_id}}",
+          "range": true,
+          "refId": "client_listener"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "expr": "sum(rate(turn_listener_client_inbound_traffic_packets_total[$__interval]))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Client -> Listener (Total)",
+          "range": true,
+          "refId": "client_listener_total"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "expr": "rate(turn_allocations_peer_inbound_traffic_packets_total[$__interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Peers -> Allocation_handlers",
+          "range": true,
+          "refId": "peers_allocation"
+        }
+      ],
+      "title": "Packets",
       "transparent": true,
       "type": "timeseries"
     },
@@ -198,7 +334,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 11
+        "y": 21
       },
       "id": 3,
       "interval": "5",
@@ -331,7 +467,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 30
       },
       "id": 6,
       "options": {
@@ -353,35 +489,28 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "100 - (rate(node_cpu_seconds_total{job=\"node\",mode=\"idle\"}[$__rate_interval]) * 100)",
+          "expr": "100 - (rate(node_cpu_seconds_total{job=\"node\",mode=\"idle\"}[$__interval]) * 100)",
           "instant": false,
           "legendFormat": "Core {{cpu}}",
           "range": true,
           "refId": "cpu"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(100 - (rate(node_cpu_seconds_total{job=\"node\",mode=\"idle\"}[$__interval]) * 100))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Total",
+          "range": true,
+          "refId": "cpu_total"
         }
       ],
       "title": "CPU usage",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "reduceRow",
-            "reduce": {
-              "include": [
-                "Core 0",
-                "Core 1",
-                "Core 2",
-                "Core 3",
-                "Core 4",
-                "Core 5",
-                "Core 6",
-                "Core 7"
-              ],
-              "reducer": "sum"
-            }
-          }
-        }
-      ],
+      "transformations": [],
       "transparent": true,
       "type": "timeseries"
     },
@@ -444,10 +573,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
+        "h": 9,
+        "w": 24,
         "x": 0,
-        "y": 29
+        "y": 39
       },
       "id": 4,
       "options": {
@@ -539,10 +668,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 29
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 48
       },
       "id": 5,
       "options": {
@@ -597,13 +726,13 @@
     "list": []
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Rel metrics",
   "uid": "f89914d6-5064-454e-bfb9-128f69816c36",
-  "version": 6,
+  "version": 1,
   "weekStart": ""
 }
