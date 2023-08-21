@@ -86,6 +86,11 @@ defmodule Rel.App do
         measurement: :inbound,
         unit: :byte
       ),
+      counter(
+        "turn.allocations.peer_inbound_traffic.packets.total",
+        event_name: [:allocations, :peer],
+        measurement: :inbound
+      ),
 
       # telemetry poller
       last_value(

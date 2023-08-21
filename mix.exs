@@ -25,7 +25,7 @@ defmodule Rel.MixProject do
   def application do
     [
       mod: {Rel.App, []},
-      extra_applications: [:logger, :crypto, :wx, :runtime_tools, :observer]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
