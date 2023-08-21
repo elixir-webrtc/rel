@@ -20,7 +20,7 @@ defmodule ConfigUtils do
 
   def parse_port(port) do
     case Integer.parse(port, 10) do
-      {val, _rem} when val in 0..49_151 ->
+      {val, _rem} when val in 0..65_535 ->
         val
 
       _other ->
@@ -134,7 +134,7 @@ config :rel,
   external_listen_ip: external_listen_ip,
   relay_ip: relay_ip,
   external_relay_ip: external_relay_ip,
-  listen_port: System.get_env("UDP_LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
+  listen_port: System.get_env("LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
   domain: System.get_env("DOMAIN", "example.com")
 
 # Metrics endpoint configuration

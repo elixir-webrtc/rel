@@ -33,7 +33,7 @@ defmodule Rel.App do
 
     metrics_ip = Application.fetch_env!(:rel, :metrics_ip)
     metrics_port = Application.fetch_env!(:rel, :metrics_port)
-    metrics_opts = [metrics: metrics(), plug_cowboy_opts: [ip: metrics_ip, port: metrics_port]]
+    metrics_opts = [metrics: metrics(), port: metrics_port, plug_cowboy_opts: [ip: metrics_ip]]
 
     children = [
       Rel.ListenerSupervisor,

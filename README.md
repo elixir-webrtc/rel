@@ -57,7 +57,7 @@ mix run --no-halt
 2. In Docker
 
 ```console
-docker run ghcr.io/webrtc-elixir/rel:latest
+docker run ghcr.io/elixir-webrtc/rel:latest
 ```
 
 ## Features and configuration

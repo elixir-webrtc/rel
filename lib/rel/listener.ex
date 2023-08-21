@@ -21,7 +21,7 @@ defmodule Rel.Listener do
   alias ExSTUN.Message.Type
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
-  @buf_size 2 * 1024
+  @buf_size 2 * 1024 * 1024
   @default_alloc_ports MapSet.new(49_152..65_535)
 
   @spec start_link(term()) :: {:ok, pid()}
@@ -198,7 +198,7 @@ defmodule Rel.Listener do
         # origin_alloc_state. In most cases, this shouldn't be a problem as 
         # client is encouraged to refresh its allocation one minute
         # before its deadline
-        :ok = :gen_udp.send(socket, c_ip, c_port, origin_response)
+        :ok = :socket.sendto(socket, origin_response, %{family: :inet, addr: c_ip, port: c_port})
 
       {:error, :allocation_exists, _alloc_origin_state} ->
         handle_error.(:allocation_exists, socket, c_ip, c_port, msg)
