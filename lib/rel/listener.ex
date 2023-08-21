@@ -22,7 +22,7 @@ defmodule Rel.Listener do
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
   @buf_size 2 * 1024 * 1024
-  @default_alloc_ports MapSet.new(49_152..65_535)
+  @default_alloc_ports MapSet.new(Application.compile_env!(:rel, :alloc_port_range))
 
   @spec start_link(term()) :: {:ok, pid()}
   def start_link(args) do

@@ -1,6 +1,10 @@
 import Config
 
 config :rel,
+  alloc_port_range: 49_152..65_535
+
+# various lifetimes
+config :rel,
   # 1 day in seconds, see https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00#section-2.2
   credentials_lifetime: 24 * 60 * 60,
   # 10 minutes in seconds
