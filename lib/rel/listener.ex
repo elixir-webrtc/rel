@@ -193,6 +193,12 @@ defmodule Rel.Listener do
       {:error, :allocation_exists, %{t_id: origin_t_id, response: origin_response}}
       when origin_t_id == msg.transaction_id ->
         Logger.info("Allocation request retransmission")
+        # Section 6.2 suggests we should adjust LIFETIME attribute
+        # but this would require asking allocation process for the
+        # current time-to-expiry or saving additional fields in the
+        # origin_alloc_state. In most cases, this shouldn't be a problem as 
+        # client is encouraged to refresh its allocation one minute
+        # before its deadline
         :ok = :gen_udp.send(socket, c_ip, c_port, origin_response)
 
       {:error, :allocation_exists, _alloc_origin_state} ->
