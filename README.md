@@ -88,6 +88,13 @@ RELAY_IP=0.0.0.0
 EXTERNAL_RELAY_IP=167.235.241.140
 ```
 
+Rel will try to open relay addresses in `49_152 - 65_535` port range, but this can be changed. `RELAY_PORT_END` must be greater than `RELAY_PORT_START`.
+
+```console
+RELAY_PORT_START=35000
+RELAY_PORT_END=45000
+```
+
 Remember to use the `REALM` variable specific to your deployment. It's used in `REALM` STUN attributes. See
 [this section of RFC 2617](https://datatracker.ietf.org/doc/html/rfc2617#section-3.2.1) to learn about appropriate values for `REALM` attribute.
 
@@ -96,6 +103,7 @@ REALM=my-amazing-turn.com
 ```
 
 You can configure the number of running `listener` processes. By default, it is equal to number of running Erlang VM schedulers:
+
 ```console
 LISTENER_COUNT=8
 ```

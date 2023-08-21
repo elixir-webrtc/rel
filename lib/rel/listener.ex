@@ -22,7 +22,6 @@ defmodule Rel.Listener do
   alias ExSTUN.Message.Attribute.{Username, XORMappedAddress}
 
   @buf_size 2 * 1024 * 1024
-  @default_alloc_ports MapSet.new(Application.compile_env!(:rel, :alloc_port_range))
 
   @spec start_link(term()) :: {:ok, pid()}
   def start_link(args) do
@@ -322,7 +321,10 @@ defmodule Rel.Listener do
       |> Enum.map(fn alloc_origin_state -> Map.fetch!(alloc_origin_state, :alloc_port) end)
       |> MapSet.new()
 
-    available_alloc_ports = MapSet.difference(@default_alloc_ports, used_alloc_ports)
+    relay_port_start = Application.fetch_env!(:rel, :relay_port_start)
+    relay_port_end = Application.fetch_env!(:rel, :relay_port_end)
+    default_alloc_ports = MapSet.new(relay_port_start..relay_port_end)
+    available_alloc_ports = MapSet.difference(default_alloc_ports, used_alloc_ports)
 
     if MapSet.size(available_alloc_ports) == 0 do
       {:error, :out_of_ports}

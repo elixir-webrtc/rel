@@ -133,7 +133,9 @@ config :rel,
   relay_ip: relay_ip,
   external_relay_ip: external_relay_ip,
   listen_port: System.get_env("LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
-  realm: System.get_env("REALM", "example.com")
+  realm: System.get_env("REALM", "example.com"),
+  relay_port_start: System.get_env("RELAY_PORT_START", "49152") |> ConfigUtils.parse_port(),
+  relay_port_end: System.get_env("RELAY_PORT_END", "65535") |> ConfigUtils.parse_port()
 
 # Metrics endpoint configuration
 config :rel,
