@@ -129,7 +129,7 @@ defmodule Rel.AllocationHandler do
       case Map.fetch(state.addr_to_chann, {ip_addr, port}) do
         {:ok, number} ->
           channel_data = <<number::16, len::16, packet::binary>>
-          # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, channel_data)
+
           :ok =
             :socket.sendto(state.turn_socket, channel_data, %{
               family: :inet,
@@ -146,7 +146,6 @@ defmodule Rel.AllocationHandler do
             |> Message.new([xor_addr, data])
             |> Message.encode()
 
-          # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
           :ok =
             :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
       end
@@ -223,7 +222,6 @@ defmodule Rel.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       :ok =
         :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
@@ -242,7 +240,7 @@ defmodule Rel.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+
         :ok =
           :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
@@ -267,7 +265,6 @@ defmodule Rel.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       :ok =
         :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
@@ -276,7 +273,7 @@ defmodule Rel.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+
         :ok =
           :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
@@ -327,7 +324,6 @@ defmodule Rel.AllocationHandler do
         |> Message.with_integrity(key)
         |> Message.encode()
 
-      # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
       :ok =
         :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
@@ -338,7 +334,7 @@ defmodule Rel.AllocationHandler do
       {:error, reason} ->
         {response, log_msg} = Utils.build_error(reason, msg.transaction_id, msg.type.method)
         Logger.warning(log_msg)
-        # :ok = :gen_udp.send(state.turn_socket, c_ip, c_port, response)
+
         :ok =
           :socket.sendto(state.turn_socket, response, %{family: :inet, addr: c_ip, port: c_port})
 
