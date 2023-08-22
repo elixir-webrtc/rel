@@ -20,7 +20,7 @@ defmodule ConfigUtils do
 
   def parse_port(port) do
     case Integer.parse(port, 10) do
-      {val, _rem} when val in 0..49_151 ->
+      {val, _rem} when val in 0..65_535 ->
         val
 
       _other ->
@@ -77,11 +77,11 @@ defmodule ConfigUtils do
 end
 
 # HTTPS for AuthProvider
-use_tls? = System.get_env("AUTH_PROVIDER_USE_TLS", "false") |> ConfigUtils.is_truthy?()
-keyfile = System.get_env("KEY_FILE_PATH")
-certfile = System.get_env("CERT_FILE_PATH")
+auth_use_tls? = System.get_env("AUTH_USE_TLS", "false") |> ConfigUtils.is_truthy?()
+auth_keyfile = System.get_env("AUTH_KEYFILE")
+auth_certfile = System.get_env("AUTH_CERTFILE")
 
-if use_tls? and (is_nil(keyfile) or is_nil(certfile)) do
+if auth_use_tls? and (is_nil(auth_keyfile) or is_nil(auth_certfile)) do
   raise "Both KEY_FILE_PATH and CERT_FILE_PATH must be set is TLS is used"
 end
 
@@ -101,10 +101,16 @@ relay_ip =
   end
 
 external_relay_ip =
-  case System.fetch_env("EXTERNAL_LISTEN_IP") do
+  case System.fetch_env("EXTERNAL_RELAY_IP") do
     {:ok, addr} -> ConfigUtils.parse_ip_address(addr)
     :error -> external_listen_ip
   end
+
+relay_port_start = System.get_env("RELAY_PORT_START", "49152") |> ConfigUtils.parse_port()
+relay_port_end = System.get_env("RELAY_PORT_END", "65535") |> ConfigUtils.parse_port()
+
+if relay_port_start > relay_port_end,
+  do: raise("RELAY_PORT_END must be greater or equal to RELAY_PORT_END")
 
 listener_count =
   case System.fetch_env("LISTENER_COUNT") do
@@ -119,14 +125,12 @@ listener_count =
 
 # AuthProvider/credentials configuration
 config :rel,
-  auth_provider_ip:
-    System.get_env("AUTH_PROVIDER_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
-  auth_provider_port: System.get_env("AUTH_PROVIDER_PORT", "4000") |> ConfigUtils.parse_port(),
-  auth_provider_allow_cors?:
-    System.get_env("AUTH_PROVIDER_ALLOW_CORS", "false") |> ConfigUtils.is_truthy?(),
-  auth_provider_use_tls?: use_tls?,
-  keyfile: keyfile,
-  certfile: certfile
+  auth_ip: System.get_env("AUTH_IP", "127.0.0.1") |> ConfigUtils.parse_ip_address(),
+  auth_port: System.get_env("AUTH_PORT", "4000") |> ConfigUtils.parse_port(),
+  auth_allow_cors?: System.get_env("AUTH_ALLOW_CORS", "false") |> ConfigUtils.is_truthy?(),
+  auth_use_tls?: auth_use_tls?,
+  auth_keyfile: auth_keyfile,
+  auth_certfile: auth_certfile
 
 # TURN server configuration
 config :rel,
@@ -134,8 +138,10 @@ config :rel,
   external_listen_ip: external_listen_ip,
   relay_ip: relay_ip,
   external_relay_ip: external_relay_ip,
-  listen_port: System.get_env("UDP_LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
-  domain: System.get_env("DOMAIN", "example.com")
+  listen_port: System.get_env("LISTEN_PORT", "3478") |> ConfigUtils.parse_port(),
+  realm: System.get_env("REALM", "example.com"),
+  relay_port_start: relay_port_start,
+  relay_port_end: relay_port_end
 
 # Metrics endpoint configuration
 config :rel,

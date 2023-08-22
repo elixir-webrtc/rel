@@ -32,7 +32,7 @@ defmodule Rel.Utils do
   @spec build_error(atom(), integer(), Method.t()) ::
           {response :: binary(), log_msg :: String.t()}
   def build_error(reason, t_id, method) do
-    domain = Application.fetch_env!(:rel, :domain)
+    realm = Application.fetch_env!(:rel, :realm)
     {log_msg, code, with_attrs?} = translate_error(reason)
     error_type = %Type{class: :error_response, method: method}
 
@@ -40,7 +40,7 @@ defmodule Rel.Utils do
 
     attrs =
       if with_attrs? do
-        attrs ++ [%Nonce{value: build_nonce()}, %Realm{value: domain}]
+        attrs ++ [%Nonce{value: build_nonce()}, %Realm{value: realm}]
       else
         attrs
       end
