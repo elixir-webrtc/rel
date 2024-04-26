@@ -7,6 +7,7 @@
 TURN server in pure Elixir.
 
 Aims to implement:
+
 - RFC 5389: [Session Traversal Utilities for NAT (STUN)](https://datatracker.ietf.org/doc/html/rfc5389)
 - RFC 5766: [Traversal Using Relays around NAT (TURN): Relay Extensions to Session Traversal Utilities for NAT (STUN)](https://datatracker.ietf.org/doc/html/rfc5766)
 - RFC 6156: [Traversal Using Relays around NAT (TURN) Extension for IPv6](https://datatracker.ietf.org/doc/html/rfc6156#autoid-7)
@@ -18,15 +19,15 @@ Supports authentication described in [A REST API For Access To TURN Services](ht
 
 ## Public deployment
 
-If you're in need of TURN server for testing purposes, feel free to use this Rel public deployment at `turn.bigcow.ovh`. 
+If you're in need of TURN server for testing purposes, feel free to use this Rel public deployment at `turn.elixir-webrtc.org`.
 
-In case of any irregularities or bugs, please open an issue with description of the problem. 
+In case of any irregularities or bugs, please open an issue with description of the problem.
 DO NOT use this deployment in production, as it's intended to be an aid in developement only.
 
 To obtain a set of credentials, use the built-in credentials mechanism. It does not require any authentication, but the credentials must be refreshed after 3 hours if not used.
 
 ```console
-$ curl -X POST "https://turn.bigcow.ovh/?service=turn&username=johnsmith"
+$ curl -X POST "https://turn.elixir-webrtc.org/?service=turn&username=johnsmith"
 {"password":"l6hs9SzUgudFeb5XjrfCfOWKeOQ=","ttl":1728,"uris":["turn:167.235.241.140:3478?transport=udp"],"username":"1691574817:johnsmith"}⏎
 ```
 
